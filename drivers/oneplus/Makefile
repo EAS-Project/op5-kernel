@@ -5,4 +5,3 @@ obj-y += boot_mode.o
 obj-y += sysrq_x.o
 endif
 
-obj-y += coretech/

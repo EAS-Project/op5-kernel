@@ -705,5 +705,3 @@ CONFIG_F2FS_FS_SECURITY=y
 CONFIG_KSWAPD_CPU_AFFINITY_MASK="f"
 # waynechang,2017/3/15, add CONFIG_INPUT_KEYCHORD to enable keychord function for systrace service
 CONFIG_INPUT_KEYCHORD=y
-# Curtis, 2017/09/08, Add UX Realm feature
-CONFIG_OPCHAIN=y
