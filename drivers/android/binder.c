@@ -81,7 +81,6 @@
 #include <uapi/linux/android/binder.h>
 #include "binder_alloc.h"
 #include "binder_trace.h"
-#include <../drivers/oneplus/coretech/opchain/opchain_binder.h>
 
 static HLIST_HEAD(binder_deferred_list);
 static DEFINE_MUTEX(binder_deferred_lock);
@@ -3109,10 +3108,6 @@ static void binder_transaction(struct binder_proc *proc,
 	sg_bufp = (u8 *)(PTR_ALIGN(off_end, sizeof(void *)));
 	sg_buf_end = sg_bufp + extra_buffers_size;
 	off_min = 0;
-	opc_binder_pass(
-		t->buffer->data_size,
-		(uint32_t *)t->buffer->data,
-		1);
 	for (; offp < off_end; offp++) {
 		struct binder_object_header *hdr;
 		size_t object_size = binder_validate_object(t->buffer, *offp);
@@ -4181,10 +4176,6 @@ retry:
 			continue;
 
 		BUG_ON(t->buffer == NULL);
-		opc_binder_pass(
-			t->buffer->data_size,
-			(uint32_t *)t->buffer->data,
-			0);
 		if (t->buffer->target_node) {
 			struct binder_node *target_node = t->buffer->target_node;
 			struct binder_priority node_prio;
