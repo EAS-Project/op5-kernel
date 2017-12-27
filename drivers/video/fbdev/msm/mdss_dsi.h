@@ -631,8 +631,6 @@ struct mdss_dsi_ctrl_pdata {
 	int panel_min_index;
 //#endif
 	int disp_vci_en_gpio;
-	struct delayed_work techeck_work;
-	struct completion te_comp;
 //#endif
 	const char *px_clk_src_name;
 	struct	clk	*px_clk_src;
