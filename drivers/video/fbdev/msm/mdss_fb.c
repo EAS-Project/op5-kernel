@@ -675,8 +675,6 @@ static ssize_t mdss_fb_force_panel_dead(struct device *dev,
 		return len;
 	}
 
-	mdss_fb_report_panel_dead(mfd);
-//#endif
 	if (kstrtouint(buf, 0, &pdata->panel_info.panel_force_dead))
 		pr_err("kstrtouint buf error!\n");
 
