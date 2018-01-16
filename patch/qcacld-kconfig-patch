@@ -1,0 +1,31 @@
+From 2f15b6dde793f535f3da4ffe09c0a533afbb8524 Mon Sep 17 00:00:00 2001
+From: joshuous <joshuous@gmail.com>
+Date: Sat, 30 Dec 2017 20:45:17 +0800
+Subject: [PATCH] qcacld-3.0: Add missing WLAN_FEATURE_FILS Kconfig
+
+We need to be able to toggle WLAN_FEATURE_FILS in the defconfig in order
+to compile qcacld-3.0 successfully. CAF missed out on this because they
+build boot images, which is not affected by this problem due to the
+way WLAN_FEATURE_FILS is automatically enabled by Kbuild.
+
+Signed-off-by: joshuous <joshuous@gmail.com>
+---
+ drivers/staging/qcacld-3.0/Kconfig | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/staging/qcacld-3.0/Kconfig b/drivers/staging/qcacld-3.0/Kconfig
+index 92530f802651..55f9268967e5 100644
+--- a/drivers/staging/qcacld-3.0/Kconfig
++++ b/drivers/staging/qcacld-3.0/Kconfig
+@@ -139,4 +139,8 @@ config ICMP_DISABLE_PS
+ config CONFIG_BUILD_TIMESTAMP
+ 	bool "Embed timestamp in wlan version"
+ 	default n
++
++config WLAN_FEATURE_FILS
++	bool "Enable FILS Feature (11ai)"
++	default n
+ endif # QCA_CLD_WLAN
+-- 
+2.14.1
+
