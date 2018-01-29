@@ -116,7 +116,7 @@ echo "RenderZenith creation script:"
 echo -e "${restore}"
 
 echo "Pick Toolchain..."
-select choice in gcc-aosp-4.9 gcc-linaro-4.9.4 gcc-linaro-6.4.1 gcc-linaro-7.2.1
+select choice in gcc-aosp-4.9 gcc-linaro-4.9.4 gcc-linaro-6.4.1-2017.11-x86_64_aarch64-linux-gnu gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu
 do
 case "$choice" in
     "gcc-aosp-4.9")
@@ -125,11 +125,11 @@ case "$choice" in
     "gcc-linaro-4.9.4")
         export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-4.9.4/bin/aarch64-linux-gnu-
         break;;
-    "gcc-linaro-6.4.1")
-        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-6.4.1/bin/aarch64-linux-gnu-
+    "gcc-linaro-6.4.1-2017.11-x86_64_aarch64-linux-gnu")
+        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-6.4.1-2017.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
         break;;
-    "gcc-linaro-7.2.1")
-        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-7.2.1/bin/aarch64-linux-gnu-
+    "gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu")
+        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
         break;;
 
 esac
