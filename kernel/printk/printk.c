@@ -892,7 +892,7 @@ void log_buf_kexec_setup(void)
 static unsigned long __initdata new_log_buf_len;
 
 /* we practice scaling the ring buffer by powers of 2 */
-static void __init log_buf_len_update(unsigned size)
+static void log_buf_len_update(unsigned size)
 {
 	if (size)
 		size = roundup_pow_of_two(size);
