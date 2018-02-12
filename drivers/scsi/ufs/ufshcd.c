@@ -608,7 +608,7 @@ static void ufshcd_print_cmd_log(struct ufs_hba *hba)
 		p = &hba->cmd_log.entries[pos];
 		pos = (pos + 1) % UFSHCD_MAX_CMD_LOGGING;
 
-		if (ktime_to_us(p->tstamp)) {
+		/*if (ktime_to_us(p->tstamp)) {
 			pr_err("%s: %s: seq_no=%u lun=0x%x cmd_id=0x%02x lba=0x%llx txfer_len=%d tag=%u, doorbell=0x%x outstanding=0x%x idn=%d time=%lld us\n",
 				p->cmd_type, p->str, p->seq_num,
 				p->lun, p->cmd_id, (unsigned long long)p->lba,
@@ -617,6 +617,7 @@ static void ufshcd_print_cmd_log(struct ufs_hba *hba)
 				ktime_to_us(p->tstamp));
 				usleep_range(1000, 1100);
 		}
+		*/
 	}
 }
 #else
@@ -3793,6 +3794,12 @@ int ufshcd_read_device_desc(struct ufs_hba *hba, u8 *buf, u32 size)
 	return ufshcd_read_desc(hba, QUERY_DESC_IDN_DEVICE, 0, buf, size);
 }
 
+/* liochen@BSP 2016/11/30, Add ufs info into *##*37847# */
+int ufshcd_read_geometry_desc(struct ufs_hba *hba, u8 *buf, u32 size)
+{
+       return ufshcd_read_desc(hba, QUERY_DESC_IDN_GEOMETRY, 0, buf, size);
+}
+
 /**
  * ufshcd_read_string_desc - read string descriptor
  * @hba: pointer to adapter instance
@@ -4707,6 +4714,7 @@ int ufshcd_change_power_mode(struct ufs_hba *hba,
 
 		memcpy(&hba->pwr_info, pwr_mode,
 			sizeof(struct ufs_pa_layer_attr));
+		hba->ufs_stats.power_mode_change_cnt++;
 	}
 
 	return ret;
@@ -5386,12 +5394,14 @@ ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 			result = DID_ERROR << 16;
 			dev_err(hba->dev,
 				"Reject UPIU not fully implemented\n");
+			WARN_ON(1);
 			break;
 		default:
 			result = DID_ERROR << 16;
 			dev_err(hba->dev,
 				"Unexpected request response code = %x\n",
 				result);
+			WARN_ON(1);
 			break;
 		}
 		break;
@@ -5422,6 +5432,7 @@ ufshcd_transfer_rsp_status(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 		 */
 		__ufshcd_print_host_regs(hba, true);
 		ufshcd_print_host_state(hba);
+		WARN_ON(1);
 		break;
 	} /* end of switch */
 
@@ -7379,9 +7390,6 @@ static void ufshcd_clear_dbg_ufs_stats(struct ufs_hba *hba)
 {
 	int err_reg_hist_size = sizeof(struct ufs_uic_err_reg_hist);
 
-	hba->ufs_stats.hibern8_exit_cnt = 0;
-	hba->ufs_stats.last_hibern8_exit_tstamp = ktime_set(0, 0);
-
 	memset(&hba->ufs_stats.pa_err, 0, err_reg_hist_size);
 	memset(&hba->ufs_stats.dl_err, 0, err_reg_hist_size);
 	memset(&hba->ufs_stats.nl_err, 0, err_reg_hist_size);
@@ -7516,6 +7524,10 @@ static int ufshcd_probe_hba(struct ufs_hba *hba)
 			}
 			hba->clk_scaling.is_allowed = true;
 		}
+
+
+		/* liochen@BSP, 2016/11/30, Add ufs info into *##*37847# */
+		ufs_fill_info(hba);
 
 		scsi_scan_host(hba->host);
 		pm_runtime_put_sync(hba->dev);

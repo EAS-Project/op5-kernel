@@ -85,6 +85,7 @@ MODULE_PARM_DESC(cpu_to_affin, "affin usb irq to this cpu");
 #define CGCTL_REG		(QSCRATCH_REG_OFFSET + 0x28)
 #define PWR_EVNT_IRQ_STAT_REG    (QSCRATCH_REG_OFFSET + 0x58)
 #define PWR_EVNT_IRQ_MASK_REG    (QSCRATCH_REG_OFFSET + 0x5C)
+#define QSCRATCH_USB30_STS_REG	(QSCRATCH_REG_OFFSET + 0xF8)
 
 #define PWR_EVNT_POWERDOWN_IN_P3_MASK		BIT(2)
 #define PWR_EVNT_POWERDOWN_OUT_P3_MASK		BIT(3)
@@ -223,6 +224,7 @@ struct dwc3_msm {
 	struct notifier_block	id_nb;
 
 	struct notifier_block	host_nb;
+	bool			host_only_mode;
 
 	int			pwr_event_irq;
 	atomic_t                in_p3;
@@ -1937,8 +1939,19 @@ static int dwc3_msm_prepare_suspend(struct dwc3_msm *mdwc)
 			break;
 		usleep_range(20, 30);
 	}
-	if (!(reg & PWR_EVNT_LPM_IN_L2_MASK))
-		dev_err(mdwc->dev, "could not transition HS PHY to L2\n");
+	if (!(reg & PWR_EVNT_LPM_IN_L2_MASK)) {
+		dbg_event(0xFF, "PWR_EVNT_LPM",
+			dwc3_msm_read_reg(mdwc->base, PWR_EVNT_IRQ_STAT_REG));
+		dbg_event(0xFF, "QUSB_STS",
+			dwc3_msm_read_reg(mdwc->base, QSCRATCH_USB30_STS_REG));
+		/* Mark fatal error for host mode or USB bus suspend case */
+		if (mdwc->in_host_mode || (mdwc->vbus_active
+			&& mdwc->otg_state == OTG_STATE_B_SUSPEND)) {
+			queue_work(mdwc->dwc3_wq, &mdwc->resume_work);
+			dev_err(mdwc->dev, "could not transition HS PHY to L2\n");
+			return -EBUSY;
+		}
+	}
 
 	/* Clear L2 event bit */
 	dwc3_msm_write_reg(mdwc->base, PWR_EVNT_IRQ_STAT_REG,
@@ -3215,6 +3228,7 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	if (host_mode ||
 		(dwc->is_drd && !of_property_read_bool(node, "extcon"))) {
 		dev_dbg(&pdev->dev, "DWC3 in default host mode\n");
+		mdwc->host_only_mode = true;
 		mdwc->id_state = DWC3_ID_GROUND;
 		dwc3_ext_event_notify(mdwc);
 	}
@@ -3401,8 +3415,8 @@ static void msm_dwc3_perf_vote_work(struct work_struct *w)
 	if (dwc->irq_cnt - dwc->last_irq_cnt >= PM_QOS_THRESHOLD)
 		in_perf_mode = true;
 
-	pr_debug("%s: in_perf_mode:%u, interrupts in last sample:%lu\n",
-		 __func__, in_perf_mode, (dwc->irq_cnt - dwc->last_irq_cnt));
+	/*pr_debug("%s: in_perf_mode:%u, interrupts in last sample:%lu\n",*/
+	/*__func__, in_perf_mode, (dwc->irq_cnt - last_irq_cnt));*/
 
 	dwc->last_irq_cnt = dwc->irq_cnt;
 	msm_dwc3_perf_vote_update(mdwc, in_perf_mode);
@@ -3589,7 +3603,9 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		mdwc->in_host_mode = false;
 
 		/* re-init core and OTG registers as block reset clears these */
-		dwc3_post_host_reset_core_init(dwc);
+		if (!mdwc->host_only_mode)
+			dwc3_post_host_reset_core_init(dwc);
+
 		pm_runtime_mark_last_busy(mdwc->dev);
 		pm_runtime_put_sync_autosuspend(mdwc->dev);
 		dbg_event(0xFF, "StopHost psync",

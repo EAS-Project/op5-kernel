@@ -133,4 +133,6 @@ void flush_kthread_worker(struct kthread_worker *worker);
 
 bool kthread_cancel_work_sync(struct kthread_work *work);
 
+bool queuing_blocked(struct kthread_worker *worker, struct kthread_work *work);
+
 #endif /* _LINUX_KTHREAD_H */

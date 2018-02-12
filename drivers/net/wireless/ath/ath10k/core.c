@@ -706,8 +706,11 @@ static int ath10k_core_get_board_id_from_otp(struct ath10k *ar)
 		   "boot get otp board id result 0x%08x board_id %d chip_id %d\n",
 		   result, board_id, chip_id);
 
-	if ((result & ATH10K_BMI_BOARD_ID_STATUS_MASK) != 0)
+	if ((result & ATH10K_BMI_BOARD_ID_STATUS_MASK) != 0 ||
+	    (board_id == 0)) {
+		ath10k_warn(ar, "board id is not exist in otp, ignore it\n");
 		return -EOPNOTSUPP;
+	}
 
 	ar->id.bmi_ids_valid = true;
 	ar->id.bmi_board_id = board_id;
@@ -1304,6 +1307,9 @@ static int ath10k_core_fetch_firmware_files(struct ath10k *ar)
 		fw_file = &ar->normal_mode_fw.fw_file;
 		fw_file->wmi_op_version = ATH10K_FW_WMI_OP_VERSION_TLV;
 		fw_file->htt_op_version = ATH10K_FW_HTT_OP_VERSION_TLV;
+		__set_bit(ATH10K_FW_FEATURE_WOWLAN_SUPPORT,
+			  fw_file->fw_features);
+		__set_bit(WMI_SERVICE_WOW, ar->wmi.svc_map);
 		return 0;
 	}
 

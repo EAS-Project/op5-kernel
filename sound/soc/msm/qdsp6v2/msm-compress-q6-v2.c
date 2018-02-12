@@ -80,6 +80,10 @@ const DECLARE_TLV_DB_LINEAR(msm_compr_vol_gain, 0,
 
 #define MAX_NUMBER_OF_STREAMS 2
 
+/*guoguangyi@mutimedia.2016.04.07
+ *use 24bits to get rid of 16bits innate noise
+ */
+int gis_24bits;
 struct msm_compr_gapless_state {
 	bool set_next_stream_id;
 	int32_t stream_opened[MAX_NUMBER_OF_STREAMS];
@@ -105,6 +109,7 @@ struct msm_compr_pdata {
 	struct msm_compr_dec_params *dec_params[MSM_FRONTEND_DAI_MAX];
 	struct msm_compr_ch_map *ch_map[MSM_FRONTEND_DAI_MAX];
 	int32_t ion_fd[MSM_FRONTEND_DAI_MAX];
+	bool is_in_use[MSM_FRONTEND_DAI_MAX];
 };
 
 struct msm_compr_audio {
@@ -1292,6 +1297,16 @@ static int msm_compr_configure_dsp_for_playback
 		return -EINVAL;
 	}
 
+     /*guoguangyi@mutimedia.2016.04.23,
+      *use 24bits to get rid of 16bits innate noise
+      *mark by globale value to open adm 24bits
+      *lifei modified in 20160430
+	  */
+	if (prtd->codec_param.codec.bit_rate == 24) {
+		bits_per_sample = 24;
+		gis_24bits = 1;
+	}
+
 	if ((prtd->codec_param.codec.format == SNDRV_PCM_FORMAT_S24_LE) ||
 		(prtd->codec_param.codec.format == SNDRV_PCM_FORMAT_S24_3LE))
 		bits_per_sample = 24;
@@ -1580,12 +1595,17 @@ static int msm_compr_playback_open(struct snd_compr_stream *cstream)
 {
 	struct snd_compr_runtime *runtime = cstream->runtime;
 	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
-	struct msm_compr_audio *prtd;
+	struct msm_compr_audio *prtd = NULL;
 	struct msm_compr_pdata *pdata =
 			snd_soc_platform_get_drvdata(rtd->platform);
 	int ret = 0;
 
 	pr_debug("%s\n", __func__);
+	if (pdata->is_in_use[rtd->dai_link->be_id] == true) {
+		pr_err("%s: %s is already in use,err: %d ",
+			__func__, rtd->dai_link->cpu_dai_name, -EBUSY);
+		return -EBUSY;
+	}
 	prtd = kzalloc(sizeof(struct msm_compr_audio), GFP_KERNEL);
 	if (prtd == NULL) {
 		pr_err("Failed to allocate memory for msm_compr_audio\n");
@@ -1597,14 +1617,14 @@ static int msm_compr_playback_open(struct snd_compr_stream *cstream)
 	pdata->cstream[rtd->dai_link->be_id] = cstream;
 	pdata->audio_effects[rtd->dai_link->be_id] =
 		 kzalloc(sizeof(struct msm_compr_audio_effects), GFP_KERNEL);
-	if (!pdata->audio_effects[rtd->dai_link->be_id]) {
+	if (pdata->audio_effects[rtd->dai_link->be_id] == NULL) {
 		pr_err("%s: Could not allocate memory for effects\n", __func__);
 		ret = -ENOMEM;
 		goto effect_err;
 	}
 	pdata->dec_params[rtd->dai_link->be_id] =
 		 kzalloc(sizeof(struct msm_compr_dec_params), GFP_KERNEL);
-	if (!pdata->dec_params[rtd->dai_link->be_id]) {
+	if (pdata->dec_params[rtd->dai_link->be_id] == NULL) {
 		pr_err("%s: Could not allocate memory for dec params\n",
 			__func__);
 		ret = -ENOMEM;
@@ -1665,14 +1685,17 @@ static int msm_compr_playback_open(struct snd_compr_stream *cstream)
 		if (ret < 0)
 			goto map_err;
 	}
+	pdata->is_in_use[rtd->dai_link->be_id] = true;
 	return 0;
 
 map_err:
 	q6asm_audio_client_free(prtd->audio_client);
 ac_err:
 	kfree(pdata->dec_params[rtd->dai_link->be_id]);
+	pdata->dec_params[rtd->dai_link->be_id] = NULL;
 param_err:
 	kfree(pdata->audio_effects[rtd->dai_link->be_id]);
+	pdata->audio_effects[rtd->dai_link->be_id] = NULL;
 effect_err:
 	pdata->cstream[rtd->dai_link->be_id] = NULL;
 	runtime->private_data = NULL;
@@ -1842,10 +1865,15 @@ static int msm_compr_playback_free(struct snd_compr_stream *cstream)
 
 	q6asm_audio_client_free(ac);
 	msm_adsp_clean_mixer_ctl_pp_event_queue(soc_prtd);
-	kfree(pdata->audio_effects[soc_prtd->dai_link->be_id]);
-	pdata->audio_effects[soc_prtd->dai_link->be_id] = NULL;
-	kfree(pdata->dec_params[soc_prtd->dai_link->be_id]);
-	pdata->dec_params[soc_prtd->dai_link->be_id] = NULL;
+	if (pdata->audio_effects[soc_prtd->dai_link->be_id] != NULL) {
+		kfree(pdata->audio_effects[soc_prtd->dai_link->be_id]);
+		pdata->audio_effects[soc_prtd->dai_link->be_id] = NULL;
+	}
+	if (pdata->dec_params[soc_prtd->dai_link->be_id] != NULL) {
+		kfree(pdata->dec_params[soc_prtd->dai_link->be_id]);
+		pdata->dec_params[soc_prtd->dai_link->be_id] = NULL;
+	}
+	pdata->is_in_use[soc_prtd->dai_link->be_id] = false;
 	kfree(prtd);
 	runtime->private_data = NULL;
 
@@ -2200,9 +2228,18 @@ static int msm_compr_trigger(struct snd_compr_stream *cstream, int cmd)
 	unsigned long flags;
 	int stream_id;
 	uint32_t stream_index;
-	uint16_t bits_per_sample = 16;
+
 	union snd_codec_options *codec_options =
 		&(prtd->codec_param.codec.options);
+	/*guoguangyi@mutimedia.2016.04.23,
+	*use 24bits to get rid of 16bits innate noise
+	*mark by globale value to open adm 24bits
+	*lifei modified in 20160430
+	*/
+	uint16_t bits_per_sample = 16;
+
+	if (prtd->codec_param.codec.bit_rate == 24)
+		bits_per_sample = 24;
 
 	spin_lock_irqsave(&prtd->lock, flags);
 	if (atomic_read(&prtd->error)) {
@@ -2683,8 +2720,8 @@ static int msm_compr_pointer(struct snd_compr_stream *cstream,
 		tstamp.copied_total = prtd->received_total;
 	first_buffer = prtd->first_buffer;
 	if (atomic_read(&prtd->error)) {
-		pr_err("%s Got RESET EVENTS notification, return error\n",
-			__func__);
+		pr_err_ratelimited("%s Got RESET EVENTS notification, return error\n",
+				   __func__);
 		if (cstream->direction == SND_COMPRESS_PLAYBACK)
 			runtime->total_bytes_transferred = tstamp.copied_total;
 		else
@@ -4049,6 +4086,7 @@ static int msm_compr_probe(struct snd_soc_platform *platform)
 		pdata->dec_params[i] = NULL;
 		pdata->cstream[i] = NULL;
 		pdata->ch_map[i] = NULL;
+		pdata->is_in_use[i] = false;
 	}
 
 	snd_soc_add_platform_controls(platform, msm_compr_gapless_controls,

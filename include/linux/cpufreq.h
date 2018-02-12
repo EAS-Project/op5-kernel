@@ -119,7 +119,15 @@ struct cpufreq_policy {
 	bool                    fast_switch_possible;
 	bool                    fast_switch_enabled;
 
-	/* Cached frequency lookup from cpufreq_driver_resolve_freq. */
+	/*
+	 * Preferred average time interval between consecutive invocations of
+	 * the driver to set the frequency for this policy.  To be set by the
+	 * scaling driver (0, which is the default, means no preference).
+	 */
+	unsigned int		up_transition_delay_us;
+	unsigned int		down_transition_delay_us;
+
+	 /* Cached frequency lookup from cpufreq_driver_resolve_freq. */
 	unsigned int cached_target_freq;
 	int cached_resolved_idx;
 
@@ -146,6 +154,10 @@ struct cpufreq_policy {
 struct cpufreq_policy *cpufreq_cpu_get_raw(unsigned int cpu);
 struct cpufreq_policy *cpufreq_cpu_get(unsigned int cpu);
 void cpufreq_cpu_put(struct cpufreq_policy *policy);
+extern unsigned int cluster1_first_cpu;
+extern bool fp_irq_cnt;
+extern void c0_cpufreq_limit_queue(void);
+extern void c1_cpufreq_limit_queue(void);
 #else
 static inline struct cpufreq_policy *cpufreq_cpu_get_raw(unsigned int cpu)
 {
@@ -659,6 +671,9 @@ int cpufreq_boost_supported(void);
 int cpufreq_boost_enabled(void);
 int cpufreq_enable_boost_support(void);
 bool policy_has_boost_freq(struct cpufreq_policy *policy);
+void acct_update_power(struct task_struct *p, cputime_t cputime);
+void cpufreq_task_stats_init(struct task_struct *p);
+void cpufreq_task_stats_exit(struct task_struct *p);
 #else
 static inline int cpufreq_boost_trigger_state(int state)
 {
@@ -702,3 +717,24 @@ struct sched_domain;
 unsigned long cpufreq_scale_freq_capacity(struct sched_domain *sd, int cpu);
 unsigned long cpufreq_scale_max_freq_capacity(int cpu);
 #endif /* _LINUX_CPUFREQ_H */
+
+/*********************************************************************
+ *                         CPUFREQ STATS                             *
+ *********************************************************************/
+
+#ifdef CONFIG_CPU_FREQ_STAT
+
+void acct_update_power(struct task_struct *p, cputime_t cputime);
+void cpufreq_task_stats_init(struct task_struct *p);
+void cpufreq_task_stats_exit(struct task_struct *p);
+void cpufreq_task_stats_remove_uids(uid_t uid_start, uid_t uid_end);
+int  proc_time_in_state_show(struct seq_file *m, struct pid_namespace *ns,
+	struct pid *pid, struct task_struct *p);
+#else
+static inline void acct_update_power(struct task_struct *p,
+	cputime_t cputime) {}
+static inline void cpufreq_task_stats_init(struct task_struct *p) {}
+static inline void cpufreq_task_stats_exit(struct task_struct *p) {}
+static inline void cpufreq_task_stats_remove_uids(uid_t uid_start,
+	uid_t uid_end) {}
+#endif

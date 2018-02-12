@@ -166,6 +166,10 @@
 #define LPASS_BE_INT5_MI2S_TX "INT5_MI2S_TX"
 #define LPASS_BE_INT6_MI2S_RX "INT6_MI2S_RX"
 #define LPASS_BE_INT6_MI2S_TX "INT6_MI2S_TX"
+
+/* guoguangyi@mutlmedia,2016.4.23,offload and headset,force use 24bits*/
+extern int gis_24bits;
+
 /* For multimedia front-ends, asm session is allocated dynamically.
  * Hence, asm session/multimedia front-end mapping has to be maintained.
  * Due to this reason, additional multimedia front-end must be placed before
@@ -415,6 +419,12 @@ enum {
 
 #define BE_DAI_PORT_SESSIONS_IDX_MAX		4
 #define BE_DAI_FE_SESSIONS_IDX_MAX		2
+
+enum {
+	ADM_TOPOLOGY_CAL_TYPE_IDX = 0,
+	ADM_LSM_TOPOLOGY_CAL_TYPE_IDX,
+	MAX_ROUTING_CAL_TYPES
+};
 
 struct msm_pcm_routing_evt {
 	void (*event_func)(enum msm_pcm_routing_event, void *);

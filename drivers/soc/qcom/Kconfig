@@ -711,6 +711,13 @@ config MSM_PERFORMANCE_HOTPLUG_ON
 	 functionality of hot plugging cores through msm_performance if there is
 	 no default core-control driver available.
 
+config MSM_PERFORMANCE_CPUFREQ_LIMITS_VOTING_ONLY
+	bool "Restrict msm_performance driver to cpufreq limits voting only"
+	depends on MSM_PERFORMANCE
+	help
+	 Setting this flag to true will restrict msm_performance driver's
+	 capabilities to setting min/max CPU frequencies only.
+
 endif # ARCH_QCOM
 
 config MSM_SUBSYSTEM_RESTART
@@ -913,6 +920,14 @@ config QCOM_EARLY_RANDOM
 	  process which means that any calls to get random numbers before then
 	  may not be truly random. Select this option to make an early call
 	  to get some random data to put in the pool. If unsure, say N.
+
+config RF_CABLE_DETECT
+	bool "detect RF cable connection"
+	help
+	  detect RF cable connection for different RF configuration
+	  To compile this driver as a module, choose M here: the module
+	  will be called RF cable.
+	  If unsure, say N.
 
 config QCOM_CX_IPEAK
 	bool "Common driver to handle Cx iPeak limitation"

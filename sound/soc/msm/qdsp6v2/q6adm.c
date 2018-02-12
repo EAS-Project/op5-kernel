@@ -26,6 +26,7 @@
 #include <sound/asound.h>
 #include "msm-dts-srs-tm-config.h"
 #include <sound/adsp_err.h>
+#include "msm-pcm-routing-v2.h"
 
 #define TIMEOUT_MS 1000
 
@@ -98,6 +99,7 @@ struct adm_ctl {
 	int num_ec_ref_rx_chans;
 	int ec_ref_rx_bit_width;
 	int ec_ref_rx_sampling_rate;
+	int lsm_port_id;
 };
 
 static struct adm_ctl			this_adm;
@@ -121,6 +123,7 @@ static struct adm_multi_ch_map multi_ch_maps[2] = {
 static int adm_get_parameters[MAX_COPPS_PER_PORT * ADM_GET_PARAMETER_LENGTH];
 static int adm_module_topo_list[
 	MAX_COPPS_PER_PORT * ADM_GET_TOPO_MODULE_LIST_LENGTH];
+
 
 int adm_validate_and_get_port_index(int port_id)
 {
@@ -1992,7 +1995,8 @@ static struct cal_block_data *adm_find_cal_by_path(int cal_index, int path)
 		cal_block = list_entry(ptr,
 			struct cal_block_data, list);
 
-		if (cal_index == ADM_AUDPROC_CAL) {
+		if (cal_index == ADM_AUDPROC_CAL ||
+		    cal_index == ADM_LSM_AUDPROC_CAL) {
 			audproc_cal_info = cal_block->cal_info;
 			if (audproc_cal_info->path == path)
 				return cal_block;
@@ -2022,7 +2026,8 @@ static struct cal_block_data *adm_find_cal_by_app_type(int cal_index, int path,
 		cal_block = list_entry(ptr,
 			struct cal_block_data, list);
 
-		if (cal_index == ADM_AUDPROC_CAL) {
+		if (cal_index == ADM_AUDPROC_CAL ||
+		    cal_index == ADM_LSM_AUDPROC_CAL) {
 			audproc_cal_info = cal_block->cal_info;
 			if ((audproc_cal_info->path == path) &&
 			    (audproc_cal_info->app_type == app_type))
@@ -2056,7 +2061,8 @@ static struct cal_block_data *adm_find_cal(int cal_index, int path,
 		cal_block = list_entry(ptr,
 			struct cal_block_data, list);
 
-		if (cal_index == ADM_AUDPROC_CAL) {
+		if (cal_index == ADM_AUDPROC_CAL ||
+		    cal_index == ADM_LSM_AUDPROC_CAL) {
 			audproc_cal_info = cal_block->cal_info;
 			if ((audproc_cal_info->path == path) &&
 			    (audproc_cal_info->app_type == app_type) &&
@@ -2135,13 +2141,22 @@ static int get_cal_path(int path)
 		return TX_DEVICE;
 }
 
+void adm_set_lsm_port_id(int port_id)
+{
+	this_adm.lsm_port_id = port_id;
+}
+
 static void send_adm_cal(int port_id, int copp_idx, int path, int perf_mode,
 			 int app_type, int acdb_id, int sample_rate)
 {
 	pr_debug("%s: port id 0x%x copp_idx %d\n", __func__, port_id, copp_idx);
 
-	send_adm_cal_type(ADM_AUDPROC_CAL, path, port_id, copp_idx, perf_mode,
-			  app_type, acdb_id, sample_rate);
+	if (port_id != this_adm.lsm_port_id)
+		send_adm_cal_type(ADM_AUDPROC_CAL, path, port_id, copp_idx,
+				perf_mode, app_type, acdb_id, sample_rate);
+	else
+		send_adm_cal_type(ADM_LSM_AUDPROC_CAL, path, port_id, copp_idx,
+				  perf_mode, app_type, acdb_id, sample_rate);
 	send_adm_cal_type(ADM_AUDVOL_CAL, path, port_id, copp_idx, perf_mode,
 			  app_type, acdb_id, sample_rate);
 	return;
@@ -2368,6 +2383,13 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 	int copp_idx = -1;
 	int tmp_port = q6audio_get_port_id(port_id);
 
+    /*guoguangyi@mutimedia.2016.04.07,qcom's patch
+     *use 24bits to get rid of 16bits innate noise
+	 */
+	if (gis_24bits) {
+		bit_width = 24;
+		pr_err("adm_open oneplus Open adm gis_24bits sepcially for offload\n");
+	}
 	pr_debug("%s:port %#x path:%d rate:%d mode:%d perf_mode:%d,topo_id %d\n",
 		 __func__, port_id, path, rate, channel_mode, perf_mode,
 		 topology);
@@ -2999,6 +3021,11 @@ int adm_close(int port_id, int perf_mode, int copp_idx)
 	int ret = 0, port_idx;
 	int copp_id = RESET_COPP_ID;
 
+    /*guoguangyi@mutimedia.2016.04.07,qcom's patch
+     *use 24bits to get rid of 16bits innate noise
+	 */
+	gis_24bits = 0;
+
 	pr_debug("%s: port_id=0x%x perf_mode: %d copp_idx: %d\n", __func__,
 		 port_id, perf_mode, copp_idx);
 
@@ -3298,6 +3325,9 @@ static int get_cal_type_index(int32_t cal_type)
 	case ADM_AUDPROC_CAL_TYPE:
 		ret = ADM_AUDPROC_CAL;
 		break;
+	case ADM_LSM_AUDPROC_CAL_TYPE:
+		ret = ADM_LSM_AUDPROC_CAL;
+		break;
 	case ADM_AUDVOL_CAL_TYPE:
 		ret = ADM_AUDVOL_CAL;
 		break;
@@ -3497,6 +3527,12 @@ static int adm_init_cal_data(void)
 		cal_utils_match_buf_num} },
 
 		{{ADM_AUDPROC_CAL_TYPE,
+		{adm_alloc_cal, adm_dealloc_cal, NULL,
+		adm_set_cal, NULL, NULL} },
+		{adm_map_cal_data, adm_unmap_cal_data,
+		cal_utils_match_buf_num} },
+
+		{{ADM_LSM_AUDPROC_CAL_TYPE,
 		{adm_alloc_cal, adm_dealloc_cal, NULL,
 		adm_set_cal, NULL, NULL} },
 		{adm_map_cal_data, adm_unmap_cal_data,
@@ -4200,7 +4236,7 @@ int adm_store_cal_data(int port_id, int copp_idx, int path, int perf_mode,
 		goto unlock;
 	}
 
-	if (cal_index == ADM_AUDPROC_CAL) {
+	if (cal_index == ADM_AUDPROC_CAL || cal_index == ADM_LSM_AUDPROC_CAL) {
 		if (cal_block->cal_data.size > AUD_PROC_BLOCK_SIZE) {
 			pr_err("%s:audproc:invalid size exp/actual[%zd, %d]\n",
 				__func__, cal_block->cal_data.size, *size);

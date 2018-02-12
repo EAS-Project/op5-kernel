@@ -618,8 +618,9 @@ static void ipa_save_uc_smmu_mapping_pa(int res_idx, phys_addr_t pa,
 		unsigned long iova, size_t len)
 {
 	IPADBG("--res_idx=%d pa=0x%pa iova=0x%lx sz=0x%zx\n", res_idx,
-			&pa, iova, len);
-	wdi_res[res_idx].res = kzalloc(sizeof(struct ipa_wdi_res), GFP_KERNEL);
+		&pa, iova, len);
+	wdi_res[res_idx].res = kzalloc(sizeof(*wdi_res[res_idx].res),
+		GFP_KERNEL);
 	if (!wdi_res[res_idx].res)
 		BUG();
 	wdi_res[res_idx].nents = 1;
@@ -645,7 +646,8 @@ static void ipa_save_uc_smmu_mapping_sgt(int res_idx, struct sg_table *sgt,
 		return;
 	}
 
-	wdi_res[res_idx].res = kcalloc(sgt->nents, sizeof(struct ipa_wdi_res),
+	wdi_res[res_idx].res = kcalloc(sgt->nents,
+		sizeof(*wdi_res[res_idx].res),
 			GFP_KERNEL);
 	if (!wdi_res[res_idx].res)
 		BUG();
@@ -783,12 +785,15 @@ int ipa3_connect_wdi_pipe(struct ipa_wdi_in_params *in,
 	}
 
 	ep = &ipa3_ctx->ep[ipa_ep_idx];
-
+	/*
+	 * modify by xcb for avoid wlan ep are not clear
+	 * at last time unload wlan module.
+	 */
 	if (ep->valid) {
-		IPAERR("EP already allocated.\n");
-		goto fail;
+		IPAERR("EP %d already allocated!!!\n", ipa_ep_idx);
+		/* goto fail; delete by xcb */
+		ipa3_disconnect_wdi_pipe(ipa_ep_idx);
 	}
-
 	memset(&ipa3_ctx->ep[ipa_ep_idx], 0, sizeof(struct ipa3_ep_context));
 	IPA_ACTIVE_CLIENTS_INC_EP(in->sys.client);
 

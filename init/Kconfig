@@ -26,6 +26,13 @@ config IRQ_WORK
 config BUILDTIME_EXTABLE_SORT
 	bool
 
+config THREAD_INFO_IN_TASK
+	bool
+	help
+	  Select this to move thread_info off the stack into task_struct.  To
+	  make this work, an arch will need to remove all thread_info fields
+	  except flags and fix any runtime bugs.
+
 menu "General setup"
 
 config BROKEN
@@ -79,7 +86,7 @@ config LOCALVERSION
 
 config LOCALVERSION_AUTO
 	bool "Automatically append version information to the version string"
-	default y
+	default n
 	help
 	  This will try to automatically determine if the current tree is a
 	  release tree by looking for git tags that belong to the current
@@ -824,7 +831,7 @@ config IKCONFIG_PROC
 config LOG_BUF_SHIFT
 	int "Kernel log buffer size (16 => 64KB, 17 => 128KB)"
 	range 12 25
-	default 17
+	default 18
 	depends on PRINTK
 	help
 	  Select the minimal kernel log buffer size as a power of 2.
@@ -1197,33 +1204,6 @@ config CGROUP_WRITEBACK
 
 endif # CGROUPS
 
-config SCHED_HMP
-	bool "Scheduler support for heterogenous multi-processor systems"
-	depends on SMP && FAIR_GROUP_SCHED
-	help
-	  This feature will let the scheduler optimize task placement on
-	  systems made of heterogeneous cpus i.e cpus that differ either
-	  in their instructions per-cycle capability or the maximum
-	  frequency they can attain.
-
-config SCHED_HMP_CSTATE_AWARE
-	bool "CPU C-state aware scheduler"
-	depends on SCHED_HMP
-	help
-	  This feature will let the HMP scheduler optimize task placement
-	  with CPUs C-state. If this is enabled, scheduler places tasks
-	  onto the shallowest C-state CPU among the most power efficient CPUs.
-
-config SCHED_CORE_CTL
-	bool "QTI Core Control"
-	depends on SMP
-	help
-	  This options enables the core control functionality in
-	  the scheduler. Core control automatically offline and
-	  online cores based on cpu load and utilization.
-
-	  If unsure, say N here.
-
 config CHECKPOINT_RESTORE
 	bool "Checkpoint/restore support" if EXPERT
 	select PROC_CHILDREN
@@ -1332,6 +1312,15 @@ config SCHED_TUNE
 
 	  Since this support exposes a single system-wide knob, the specified
 	  boost value is applied to all (CFS) tasks in the system.
+
+	  If unsure, say N.
+
+config DYNAMIC_STUNE_BOOST
+	bool "Dynamic SchedTune boosting support"
+	depends on SCHED_TUNE
+	help
+	  This option extends the SchedTune framework and provides APIs to
+	  activate and reset SchedTune boosting from anywhere in the kernel.
 
 	  If unsure, say N.
 

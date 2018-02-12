@@ -2637,12 +2637,6 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 	 * sent before kickoff completes so that backlight
 	 * update happens after it.
 	 */
-	if (mdss_fb_is_power_off(mfd) &&
-		mfd->panel_info->type == MIPI_CMD_PANEL) {
-		pr_debug("wait for pp done after resume for cmd mode\n");
-		mdss_mdp_display_wait4pingpong(ctl, true);
-	}
-
 	/*
 	 * Configure Timing Engine, if new fps was set.
 	 * We need to do this after the wait for vsync
@@ -3300,12 +3294,14 @@ int mdss_mdp_overlay_vsync_ctrl(struct msm_fb_data_type *mfd, int en)
 		goto end;
 	}
 
+	mdp5_data->vsync_en = en;
+
 	if (!ctl->panel_data->panel_info.cont_splash_enabled
 		&& (!mdss_mdp_ctl_is_power_on(ctl) ||
 		mdss_panel_is_power_on_ulp(ctl->power_state))) {
 		pr_debug("fb%d vsync pending first update en=%d, ctl power state:%d\n",
 				mfd->index, en, ctl->power_state);
-		rc = -EPERM;
+		rc = 0;
 		goto end;
 	}
 
@@ -5752,6 +5748,13 @@ static int mdss_mdp_overlay_on(struct msm_fb_data_type *mfd)
 	}
 
 panel_on:
+	if (mdp5_data->vsync_en) {
+		pr_info("reenabling vsync for fb%d\n", mfd->index);
+		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
+		rc = ctl->ops.add_vsync_handler(ctl, &ctl->vsync_handler);
+		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
+	}
+
 	if (IS_ERR_VALUE(rc)) {
 		pr_err("Failed to turn on fb%d\n", mfd->index);
 		mdss_mdp_overlay_off(mfd);
@@ -6140,6 +6143,9 @@ static void __vsync_retire_signal(struct msm_fb_data_type *mfd, int val)
 		sw_sync_timeline_inc(mdp5_data->vsync_timeline, val);
 
 		mdp5_data->retire_cnt -= min(val, mdp5_data->retire_cnt);
+		pr_debug("Retire signaled! timeline val=%d remaining=%d\n",
+				mdp5_data->vsync_timeline->value,
+				mdp5_data->retire_cnt);
 		if (mdp5_data->retire_cnt == 0) {
 			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 			mdp5_data->ctl->ops.remove_vsync_handler(mdp5_data->ctl,
@@ -6361,6 +6367,13 @@ void mdss_mdp_footswitch_ctrl_handler(bool on)
 	mdss_mdp_footswitch_ctrl(mdata, on);
 }
 
+static void mdss_mdp_signal_retire_fence(struct msm_fb_data_type *mfd,
+						int retire_cnt)
+{
+	__vsync_retire_signal(mfd, retire_cnt);
+	pr_debug("Signaled (%d) pending retire fence\n", retire_cnt);
+}
+
 int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 {
 	struct device *dev = mfd->fbi->dev;
@@ -6402,6 +6415,7 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 	mdp5_interface->splash_init_fnc = mdss_mdp_splash_init;
 	mdp5_interface->configure_panel = mdss_mdp_update_panel_info;
 	mdp5_interface->input_event_handler = mdss_mdp_input_event_handler;
+	mdp5_interface->signal_retire_fence = mdss_mdp_signal_retire_fence;
 
 	/*
 	 * Register footswitch control only for primary fb pm
@@ -6565,6 +6579,7 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 		}
 	}
 	mfd->mdp_sync_pt_data.async_wait_fences = true;
+	mdp5_data->vsync_en = false;
 
 	pm_runtime_set_suspended(&mfd->pdev->dev);
 	pm_runtime_enable(&mfd->pdev->dev);

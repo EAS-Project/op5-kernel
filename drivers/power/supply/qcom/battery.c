@@ -145,22 +145,52 @@ static void split_settled(struct pl_data *chip)
 		total_current_ua = pval.intval;
 	}
 
-	pval.intval = total_current_ua - slave_ua;
-	/* Set ICL on main charger */
-	rc = power_supply_set_property(chip->main_psy,
+	/*
+	 * If there is an increase in slave share
+	 * (Also handles parallel enable case)
+	 *	Set Main ICL then slave ICL
+	 * else
+	 * (Also handles parallel disable case)
+	 *	Set slave ICL then main ICL.
+	 */
+	if (slave_ua > chip->pl_settled_ua) {
+		pval.intval = total_current_ua - slave_ua;
+		/* Set ICL on main charger */
+		rc = power_supply_set_property(chip->main_psy,
 				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
-	if (rc < 0) {
-		pr_err("Couldn't change slave suspend state rc=%d\n", rc);
-		return;
-	}
+		if (rc < 0) {
+			pr_err("Couldn't change slave suspend state rc=%d\n",
+					rc);
+			return;
+		}
 
-	/* set parallel's ICL  could be 0mA when pl is disabled */
-	pval.intval = slave_ua;
-	rc = power_supply_set_property(chip->pl_psy,
-			POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
-	if (rc < 0) {
-		pr_err("Couldn't set parallel icl, rc=%d\n", rc);
-		return;
+		/* set parallel's ICL  could be 0mA when pl is disabled */
+		pval.intval = slave_ua;
+		rc = power_supply_set_property(chip->pl_psy,
+				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
+		if (rc < 0) {
+			pr_err("Couldn't set parallel icl, rc=%d\n", rc);
+			return;
+		}
+	} else {
+		/* set parallel's ICL  could be 0mA when pl is disabled */
+		pval.intval = slave_ua;
+		rc = power_supply_set_property(chip->pl_psy,
+				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
+		if (rc < 0) {
+			pr_err("Couldn't set parallel icl, rc=%d\n", rc);
+			return;
+		}
+
+		pval.intval = total_current_ua - slave_ua;
+		/* Set ICL on main charger */
+		rc = power_supply_set_property(chip->main_psy,
+				POWER_SUPPLY_PROP_CURRENT_MAX, &pval);
+		if (rc < 0) {
+			pr_err("Couldn't change slave suspend state rc=%d\n",
+					rc);
+			return;
+		}
 	}
 
 	chip->total_settled_ua = total_settled_ua;
@@ -412,7 +442,7 @@ static int pl_fcc_vote_callback(struct votable *votable, void *data,
 
 	if (!chip->main_psy)
 		return 0;
-
+	pr_info("total_fcc_ua=%d\n", total_fcc_ua);
 	if (chip->pl_mode == POWER_SUPPLY_PL_NONE
 	    || get_effective_result_locked(chip->pl_disable_votable)) {
 		pval.intval = total_fcc_ua;
@@ -427,24 +457,56 @@ static int pl_fcc_vote_callback(struct votable *votable, void *data,
 	if (chip->pl_mode != POWER_SUPPLY_PL_NONE) {
 		split_fcc(chip, total_fcc_ua, &master_fcc_ua, &slave_fcc_ua);
 
-		pval.intval = slave_fcc_ua;
-		rc = power_supply_set_property(chip->pl_psy,
+		/*
+		 * If there is an increase in slave share
+		 * (Also handles parallel enable case)
+		 *	Set Main ICL then slave FCC
+		 * else
+		 * (Also handles parallel disable case)
+		 *	Set slave ICL then main FCC.
+		 */
+		if (slave_fcc_ua > chip->slave_fcc_ua) {
+			pval.intval = master_fcc_ua;
+			rc = power_supply_set_property(chip->main_psy,
 				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 				&pval);
-		if (rc < 0) {
-			pr_err("Couldn't set parallel fcc, rc=%d\n", rc);
-			return rc;
-		}
+			if (rc < 0) {
+				pr_err("Could not set main fcc, rc=%d\n", rc);
+				return rc;
+			}
 
-		chip->slave_fcc_ua = slave_fcc_ua;
-
-		pval.intval = master_fcc_ua;
-		rc = power_supply_set_property(chip->main_psy,
+			pval.intval = slave_fcc_ua;
+			rc = power_supply_set_property(chip->pl_psy,
 				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 				&pval);
-		if (rc < 0) {
-			pr_err("Could not set main fcc, rc=%d\n", rc);
-			return rc;
+			if (rc < 0) {
+				pr_err("Couldn't set parallel fcc, rc=%d\n",
+						rc);
+				return rc;
+			}
+
+			chip->slave_fcc_ua = slave_fcc_ua;
+		} else {
+			pval.intval = slave_fcc_ua;
+			rc = power_supply_set_property(chip->pl_psy,
+				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
+				&pval);
+			if (rc < 0) {
+				pr_err("Couldn't set parallel fcc, rc=%d\n",
+						rc);
+				return rc;
+			}
+
+			chip->slave_fcc_ua = slave_fcc_ua;
+
+			pval.intval = master_fcc_ua;
+			rc = power_supply_set_property(chip->main_psy,
+				POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
+				&pval);
+			if (rc < 0) {
+				pr_err("Could not set main fcc, rc=%d\n", rc);
+				return rc;
+			}
 		}
 	}
 
@@ -463,6 +525,7 @@ static int pl_fv_vote_callback(struct votable *votable, void *data,
 	struct pl_data *chip = data;
 	union power_supply_propval pval = {0, };
 	int rc = 0;
+	pr_info("%s,fv_uv=%d\n", __func__, fv_uv);
 
 	if (fv_uv < 0)
 		return 0;
@@ -649,10 +712,8 @@ static int pl_disable_vote_callback(struct votable *votable,
 		rerun_election(chip->fcc_votable);
 		rerun_election(chip->fv_votable);
 	}
-
-	pl_dbg(chip, PR_PARALLEL, "parallel charging %s\n",
+	pr_info("parallel charging %s\n",
 		   pl_disable ? "disabled" : "enabled");
-
 	return 0;
 }
 

@@ -1237,6 +1237,36 @@ static int ath10k_monitor_recalc(struct ath10k *ar)
 		return ath10k_monitor_stop(ar);
 }
 
+static bool ath10k_mac_can_set_cts_prot(struct ath10k_vif *arvif)
+{
+	struct ath10k *ar = arvif->ar;
+
+	lockdep_assert_held(&ar->conf_mutex);
+
+	if (!arvif->is_started) {
+		ath10k_dbg(ar, ATH10K_DBG_MAC, "defer cts setup, vdev is not ready yet\n");
+		return false;
+	}
+
+	return true;
+}
+
+static int ath10k_mac_set_cts_prot(struct ath10k_vif *arvif)
+{
+	struct ath10k *ar = arvif->ar;
+	u32 vdev_param;
+
+	lockdep_assert_held(&ar->conf_mutex);
+
+	vdev_param = ar->wmi.vdev_param->protection_mode;
+
+	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac vdev %d cts_protection %d\n",
+		   arvif->vdev_id, arvif->use_cts_prot);
+
+	return ath10k_wmi_vdev_set_param(ar, arvif->vdev_id, vdev_param,
+					 arvif->use_cts_prot ? 1 : 0);
+}
+
 static int ath10k_recalc_rtscts_prot(struct ath10k_vif *arvif)
 {
 	struct ath10k *ar = arvif->ar;
@@ -1267,15 +1297,18 @@ static int ath10k_start_cac(struct ath10k *ar)
 
 	set_bit(ATH10K_CAC_RUNNING, &ar->dev_flags);
 
-	ret = ath10k_monitor_recalc(ar);
-	if (ret) {
-		ath10k_warn(ar, "failed to start monitor (cac): %d\n", ret);
-		clear_bit(ATH10K_CAC_RUNNING, &ar->dev_flags);
-		return ret;
-	}
+	if (!QCA_REV_WCN3990(ar)) {
+		ret = ath10k_monitor_recalc(ar);
+		if (ret) {
+			ath10k_warn(ar, "failed to start monitor (cac): %d\n",
+				    ret);
+			clear_bit(ATH10K_CAC_RUNNING, &ar->dev_flags);
+			return ret;
+		}
 
-	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac cac start monitor vdev %d\n",
-		   ar->monitor_vdev_id);
+		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac cac start monitor vdev %d\n",
+			   ar->monitor_vdev_id);
+	}
 
 	return 0;
 }
@@ -1289,7 +1322,8 @@ static int ath10k_stop_cac(struct ath10k *ar)
 		return 0;
 
 	clear_bit(ATH10K_CAC_RUNNING, &ar->dev_flags);
-	ath10k_monitor_stop(ar);
+	if (!QCA_REV_WCN3990(ar))
+		ath10k_monitor_stop(ar);
 
 	ath10k_dbg(ar, ATH10K_DBG_MAC, "mac cac finished\n");
 
@@ -1386,6 +1420,10 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif,
 	int ret = 0;
 
 	lockdep_assert_held(&ar->conf_mutex);
+
+	/* Clear arp and ns offload cache */
+	memset(&arvif->arp_offload, 0, sizeof(arvif->arp_offload));
+	memset(&arvif->ns_offload, 0, sizeof(arvif->ns_offload));
 
 	reinit_completion(&ar->vdev_setup_done);
 	reinit_completion(&ar->vdev_delete_done);
@@ -5382,20 +5420,18 @@ static void ath10k_bss_info_changed(struct ieee80211_hw *hw,
 
 	if (changed & BSS_CHANGED_ERP_CTS_PROT) {
 		arvif->use_cts_prot = info->use_cts_prot;
-		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac vdev %d cts_prot %d\n",
-			   arvif->vdev_id, info->use_cts_prot);
 
 		ret = ath10k_recalc_rtscts_prot(arvif);
 		if (ret)
 			ath10k_warn(ar, "failed to recalculate rts/cts prot for vdev %d: %d\n",
 				    arvif->vdev_id, ret);
 
-		vdev_param = ar->wmi.vdev_param->protection_mode;
-		ret = ath10k_wmi_vdev_set_param(ar, arvif->vdev_id, vdev_param,
-						info->use_cts_prot ? 1 : 0);
-		if (ret)
-			ath10k_warn(ar, "failed to set protection mode %d on vdev %i: %d\n",
-				    info->use_cts_prot, arvif->vdev_id, ret);
+		if (ath10k_mac_can_set_cts_prot(arvif)) {
+			ret = ath10k_mac_set_cts_prot(arvif);
+			if (ret)
+				ath10k_warn(ar, "failed to set cts protection for vdev %d: %d\n",
+					    arvif->vdev_id, ret);
+		}
 	}
 
 	if (changed & BSS_CHANGED_ERP_SLOT) {
@@ -7459,6 +7495,13 @@ ath10k_mac_op_assign_vif_chanctx(struct ieee80211_hw *hw,
 		arvif->is_up = true;
 	}
 
+	if (ath10k_mac_can_set_cts_prot(arvif)) {
+		ret = ath10k_mac_set_cts_prot(arvif);
+		if (ret)
+			ath10k_warn(ar, "failed to set cts protection for vdev %d: %d\n",
+				    arvif->vdev_id, ret);
+	}
+
 	mutex_unlock(&ar->conf_mutex);
 	return 0;
 
@@ -7578,6 +7621,8 @@ static const struct ieee80211_ops ath10k_ops = {
 #ifdef CONFIG_PM
 	.suspend			= ath10k_wow_op_suspend,
 	.resume				= ath10k_wow_op_resume,
+	.set_wakeup			= ath10k_wow_op_set_wakeup,
+	.set_rekey_data			= ath10k_wow_op_set_rekey_data,
 #endif
 #ifdef CONFIG_MAC80211_DEBUGFS
 	.sta_add_debugfs		= ath10k_sta_add_debugfs,
