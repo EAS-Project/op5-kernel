@@ -104,8 +104,8 @@ function make_modules {
 function make_zip {
         cp -vr $ZIMAGE_DIR/$KERNEL $REPACK_DIR/zImage
         cd $REPACK_DIR
-        zip -r9 RenderZenith-"$VARIANT"-V.zip *
-        mv RenderZenith-"$VARIANT"-V.zip $ZIP_MOVE
+        zip -r9 RZ-"$VARIANT"-V.zip *
+        mv RZ-"$VARIANT"-V.zip $ZIP_MOVE
         cd $KERNEL_DIR
 }
 
