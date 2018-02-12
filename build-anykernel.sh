@@ -25,7 +25,7 @@ KERNEL="Image.gz-dtb"
 DEFCONFIG="oneplus5_defconfig"
 
 # Kernel Details
-VER=RenderZenith
+VER=RZ-3.0.0
 VARIANT="OP5-OOS-0-EAS"
 
 # Vars
