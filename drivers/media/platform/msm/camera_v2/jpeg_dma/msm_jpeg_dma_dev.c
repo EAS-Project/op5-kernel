@@ -400,8 +400,10 @@ static void msm_jpegdma_stop_streaming(struct vb2_queue *q)
 		ret = -ETIME;
 	}
 
+        mutex_lock(&ctx->jdma_device->lock);
 	if (ctx->jdma_device->ref_count > 0)
 		msm_jpegdma_hw_put(ctx->jdma_device);
+        mutex_unlock(&ctx->jdma_device->lock);
 }
 
 /* Videobuf2 queue callbacks. */
@@ -585,9 +587,11 @@ static int msm_jpegdma_release(struct file *file)
 {
 	struct jpegdma_ctx *ctx = msm_jpegdma_ctx_from_fh(file->private_data);
 
+        mutex_lock(&ctx->jdma_device->lock);
 	/* release all the resources */
 	if (ctx->jdma_device->ref_count > 0)
 		msm_jpegdma_hw_put(ctx->jdma_device);
+        mutex_unlock(&ctx->jdma_device->lock);
 
 	atomic_set(&ctx->active, 0);
 	complete_all(&ctx->completion);
@@ -816,9 +820,12 @@ static int msm_jpegdma_s_fmt_vid_out(struct file *file,
 static int msm_jpegdma_reqbufs(struct file *file,
 	void *fh, struct v4l2_requestbuffers *req)
 {
+	int ret = 0;
 	struct jpegdma_ctx *ctx = msm_jpegdma_ctx_from_fh(fh);
-
-	return v4l2_m2m_reqbufs(file, ctx->m2m_ctx, req);
+	mutex_lock(&ctx->lock);
+	ret = v4l2_m2m_reqbufs(file, ctx->m2m_ctx, req);
+	mutex_unlock(&ctx->lock);
+	return ret;
 }
 
 /*
@@ -925,11 +932,11 @@ static int msm_jpegdma_streamoff(struct file *file,
 {
 	struct jpegdma_ctx *ctx = msm_jpegdma_ctx_from_fh(fh);
 	int ret;
-
+	mutex_lock(&ctx->lock);
 	ret = v4l2_m2m_streamoff(file, ctx->m2m_ctx, buf_type);
 	if (ret < 0)
 		dev_err(ctx->jdma_device->dev, "Stream off fails\n");
-
+	mutex_unlock(&ctx->lock);
 	return ret;
 }
 

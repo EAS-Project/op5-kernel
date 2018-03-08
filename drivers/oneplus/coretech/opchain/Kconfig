@@ -1,3 +1,0 @@
-config OPCHAIN
-	default y
-	bool "Oneplus CoreTech helper, used for opchain module"

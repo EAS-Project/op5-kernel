@@ -39,6 +39,7 @@
 #define	SCKP		(1 << 13)	/* Serial Bit Clock Polarity */
 #define	SWSP		(1 << 12)	/* Serial WS Polarity */
 #define	SDTA		(1 << 10)	/* Serial Data Alignment */
+#define	PDTA		(1 <<  9)	/* Parallel Data Alignment */
 #define	DEL		(1 <<  8)	/* Serial Data Delay */
 #define	CKDV(v)		(v <<  4)	/* Serial Clock Division Ratio */
 #define	TRMD		(1 <<  1)	/* Transmit/Receive Mode Select */
@@ -286,7 +287,7 @@ static int rsnd_ssi_init(struct rsnd_mod *mod,
 	struct snd_pcm_runtime *runtime = rsnd_io_to_runtime(io);
 	u32 cr;
 
-	cr = FORCE;
+	cr = FORCE | PDTA;
 
 	/*
 	 * always use 32bit system word for easy clock calculation.
@@ -549,10 +550,15 @@ static int rsnd_ssi_dma_remove(struct rsnd_mod *mod,
 			       struct rsnd_priv *priv)
 {
 	struct rsnd_ssi *ssi = rsnd_mod_to_ssi(mod);
+	struct rsnd_mod *pure_ssi_mod = rsnd_io_to_mod_ssi(io);
 	struct device *dev = rsnd_priv_to_dev(priv);
 	int irq = ssi->info->irq;
 
 	rsnd_dma_quit(io, rsnd_mod_to_dma(mod));
+
+	/* Do nothing if non SSI (= SSI parent, multi SSI) mod */
+	if (pure_ssi_mod != mod)
+		return 0;
 
 	/* PIO will request IRQ again */
 	devm_free_irq(dev, irq, mod);

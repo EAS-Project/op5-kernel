@@ -1172,6 +1172,7 @@ static void wb_update_dirty_ratelimit(struct dirty_throttle_control *dtc,
 	unsigned long balanced_dirty_ratelimit;
 	unsigned long step;
 	unsigned long x;
+	unsigned long shift;
 
 	/*
 	 * The dirty rate will match the writeout rate in long term, except
@@ -1296,11 +1297,11 @@ static void wb_update_dirty_ratelimit(struct dirty_throttle_control *dtc,
 	 * rate itself is constantly fluctuating. So decrease the track speed
 	 * when it gets close to the target. Helps eliminate pointless tremors.
 	 */
-	step >>= dirty_ratelimit / (2 * step + 1);
-	/*
-	 * Limit the tracking speed to avoid overshooting.
-	 */
-	step = (step + 7) / 8;
+	shift = dirty_ratelimit / (2 * step + 1);
+	if (shift < BITS_PER_LONG)
+		step = DIV_ROUND_UP(step >> shift, 8);
+	else
+		step = 0;
 
 	if (dirty_ratelimit < balanced_dirty_ratelimit)
 		dirty_ratelimit += step;
@@ -1993,11 +1994,11 @@ void laptop_mode_timer_fn(unsigned long data)
 	 * We want to write everything out, not just down to the dirty
 	 * threshold
 	 */
-	if (!bdi_has_dirty_io(&q->backing_dev_info))
+	if (!bdi_has_dirty_io(q->backing_dev_info))
 		return;
 
 	rcu_read_lock();
-	list_for_each_entry_rcu(wb, &q->backing_dev_info.wb_list, bdi_node)
+	list_for_each_entry_rcu(wb, &q->backing_dev_info->wb_list, bdi_node)
 		if (wb_has_dirty_io(wb))
 			wb_start_writeback(wb, nr_pages, true,
 					   WB_REASON_LAPTOP_TIMER);

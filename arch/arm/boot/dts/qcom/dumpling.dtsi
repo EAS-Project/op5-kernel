@@ -217,6 +217,19 @@
 				output-low;
 			};
 		};
+		goodixfp_irq_init: goodixfp_irq_init {
+			mux {
+				pins = "gpio121";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio121";
+				drive-strength = <2>;
+				bias-disable;
+				input-enable;
+			};
+		};
 	};
 
 	goodix_fp {
@@ -226,7 +239,7 @@
 	fp-gpio-reset = <&tlmm 75 0x00>;
 	fp-gpio-enable = <&tlmm 65 0x00>;
 	pinctrl-names = "fp_en_init", "fp_dis_init";
-	pinctrl-0 = <&goodixfp_enable_init>;
+	pinctrl-0 = <&goodixfp_enable_init &goodixfp_irq_init>;
 	pinctrl-1 = <&goodixfp_disable_init>;
 	status = "okay";
 	oem,dumpling;
@@ -381,8 +394,6 @@
 
 &pmi8998_haptics {
 	status = "okay";
-	interrupts = <0x3 0xc0 0x0 IRQ_TYPE_NONE>,
-	<0x3 0xc0 0x1 IRQ_TYPE_NONE>;
 	qcom,wave-shape = "sine";
 	qcom,play-mode = "buffer";
 	qcom,wave-samples = [28 28 28 28 28 28 28 28];
@@ -390,6 +401,7 @@
 	qcom,brake-pattern = [03 03 03 03];
 	qcom,wave-rep-cnt = <1>;
 	qcom,wave-samp-rep-cnt = <1>;
+	qcom,use-play-irq;
 	qcom,vmax-mv = <2088>;
 	qcom,wave-play-rate-us = <4255>;
 	qcom,lra-auto-res-mode = "zxd-eop";
@@ -874,7 +886,7 @@
 		dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/system";
 				type = "ext4";
 				mnt_flags = "ro,barrier=1,discard";
-				fsmgr_flags = "wait,verify";
+				fsmgr_flags = "wait";
 				status = "ok";
 			};
 		};

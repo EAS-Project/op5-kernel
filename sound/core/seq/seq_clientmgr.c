@@ -236,6 +236,7 @@ static struct snd_seq_client *seq_create_client1(int client_index, int poolsize)
 	rwlock_init(&client->ports_lock);
 	mutex_init(&client->ports_mutex);
 	INIT_LIST_HEAD(&client->ports_list_head);
+	mutex_init(&client->ioctl_mutex);
 
 	/* find free slot in the client table */
 	spin_lock_irqsave(&clients_lock, flags);
@@ -676,7 +677,7 @@ static int deliver_to_subscribers(struct snd_seq_client *client,
 	if (atomic)
 		read_lock(&grp->list_lock);
 	else
-		down_read(&grp->list_mutex);
+		down_read_nested(&grp->list_mutex, hop);
 	list_for_each_entry(subs, &grp->list_head, src_list) {
 		/* both ports ready? */
 		if (atomic_read(&subs->ref_count) != 2)
@@ -1011,7 +1012,7 @@ static ssize_t snd_seq_write(struct file *file, const char __user *buf,
 {
 	struct snd_seq_client *client = file->private_data;
 	int written = 0, len;
-	int err = -EINVAL;
+	int err;
 	struct snd_seq_event event;
 
 	if (!(snd_seq_file_flags(file) & SNDRV_SEQ_LFLG_OUTPUT))
@@ -1026,11 +1027,15 @@ static ssize_t snd_seq_write(struct file *file, const char __user *buf,
 
 	/* allocate the pool now if the pool is not allocated yet */ 
 	if (client->pool->size > 0 && !snd_seq_write_pool_allocated(client)) {
-		if (snd_seq_pool_init(client->pool) < 0)
+		mutex_lock(&client->ioctl_mutex);
+		err = snd_seq_pool_init(client->pool);
+		mutex_unlock(&client->ioctl_mutex);
+		if (err < 0)
 			return -ENOMEM;
 	}
 
 	/* only process whole events */
+	err = -EINVAL;
 	while (count >= sizeof(struct snd_seq_event)) {
 		/* Read in the event header from the user */
 		len = sizeof(event);
@@ -1260,6 +1265,7 @@ static int snd_seq_ioctl_create_port(struct snd_seq_client *client,
 	struct snd_seq_client_port *port;
 	struct snd_seq_port_info info;
 	struct snd_seq_port_callback *callback;
+	int port_idx;
 
 	if (copy_from_user(&info, arg, sizeof(info)))
 		return -EFAULT;
@@ -1273,7 +1279,9 @@ static int snd_seq_ioctl_create_port(struct snd_seq_client *client,
 		return -ENOMEM;
 
 	if (client->type == USER_CLIENT && info.kernel) {
-		snd_seq_delete_port(client, port->addr.port);
+		port_idx = port->addr.port;
+		snd_seq_port_unlock(port);
+		snd_seq_delete_port(client, port_idx);
 		return -EINVAL;
 	}
 	if (client->type == KERNEL_CLIENT) {
@@ -1294,6 +1302,7 @@ static int snd_seq_ioctl_create_port(struct snd_seq_client *client,
 
 	snd_seq_set_port_info(port, &info);
 	snd_seq_system_client_ev_port_start(port->addr.client, port->addr.port);
+	snd_seq_port_unlock(port);
 
 	if (copy_to_user(arg, &info, sizeof(info)))
 		return -EFAULT;
@@ -1530,19 +1539,14 @@ static int snd_seq_ioctl_create_queue(struct snd_seq_client *client,
 				      void __user *arg)
 {
 	struct snd_seq_queue_info info;
-	int result;
 	struct snd_seq_queue *q;
 
 	if (copy_from_user(&info, arg, sizeof(info)))
 		return -EFAULT;
 
-	result = snd_seq_queue_alloc(client->number, info.locked, info.flags);
-	if (result < 0)
-		return result;
-
-	q = queueptr(result);
-	if (q == NULL)
-		return -EINVAL;
+	q = snd_seq_queue_alloc(client->number, info.locked, info.flags);
+	if (IS_ERR(q))
+		return PTR_ERR(q);
 
 	info.queue = q->queue;
 	info.locked = q->locked;
@@ -1552,7 +1556,7 @@ static int snd_seq_ioctl_create_queue(struct snd_seq_client *client,
 	if (! info.name[0])
 		snprintf(info.name, sizeof(info.name), "Queue-%d", q->queue);
 	strlcpy(q->name, info.name, sizeof(q->name));
-	queuefree(q);
+	snd_use_lock_free(&q->use_lock);
 
 	if (copy_to_user(arg, &info, sizeof(info)))
 		return -EFAULT;
@@ -2221,11 +2225,15 @@ static int snd_seq_do_ioctl(struct snd_seq_client *client, unsigned int cmd,
 static long snd_seq_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct snd_seq_client *client = file->private_data;
+	long ret;
 
 	if (snd_BUG_ON(!client))
 		return -ENXIO;
 		
-	return snd_seq_do_ioctl(client, cmd, (void __user *) arg);
+	mutex_lock(&client->ioctl_mutex);
+	ret = snd_seq_do_ioctl(client, cmd, (void __user *) arg);
+	mutex_unlock(&client->ioctl_mutex);
+	return ret;
 }
 
 #ifdef CONFIG_COMPAT

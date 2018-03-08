@@ -30,7 +30,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 
-#define WCN3990_MAX_IRQ 12
+#define WCN3990_MAX_IRQ	12
+#define WCN3990_WAKE_IRQ_CE	2
 
 const char *ce_name[WCN3990_MAX_IRQ] = {
 	"WLAN_CE_0",
@@ -645,10 +646,6 @@ static int ath10k_snoc_hif_tx_sg(struct ath10k *ar, u8 pipe_id,
 	struct ath10k_snoc *ar_snoc = ath10k_snoc_priv(ar);
 	struct ath10k_snoc_pipe *snoc_pipe;
 	struct ath10k_ce_pipe *ce_pipe;
-	struct ath10k_ce_ring *src_ring;
-	unsigned int nentries_mask;
-	unsigned int sw_index;
-	unsigned int write_index;
 	int err, i = 0;
 
 	if (!ar_snoc)
@@ -659,18 +656,7 @@ static int ath10k_snoc_hif_tx_sg(struct ath10k *ar, u8 pipe_id,
 
 	snoc_pipe = &ar_snoc->pipe_info[pipe_id];
 	ce_pipe = snoc_pipe->ce_hdl;
-	src_ring = ce_pipe->src_ring;
 	spin_lock_bh(&ar_snoc->opaque_ctx.ce_lock);
-
-	nentries_mask = src_ring->nentries_mask;
-	sw_index = src_ring->sw_index;
-	write_index = src_ring->write_index;
-
-	if (unlikely(CE_RING_DELTA(nentries_mask,
-				   write_index, sw_index - 1) < n_items)) {
-		err = -ENOBUFS;
-		goto err;
-	}
 
 	for (i = 0; i < n_items - 1; i++) {
 		ath10k_dbg(ar, ATH10K_DBG_SNOC,
@@ -966,6 +952,8 @@ static void ath10k_snoc_hif_power_down(struct ath10k *ar)
 
 	if (!atomic_read(&ar_snoc->pm_ops_inprogress))
 		ath10k_snoc_qmi_wlan_disable(ar);
+
+	ce_remove_rri_on_ddr(ar);
 }
 
 int ath10k_snoc_get_ce_id(struct ath10k *ar, int irq)
@@ -1120,6 +1108,8 @@ static int ath10k_snoc_bus_configure(struct ath10k *ar)
 		return ret;
 	}
 
+	ce_config_rri_on_ddr(ar);
+
 	return 0;
 }
 
@@ -1161,14 +1151,12 @@ static int ath10k_snoc_hif_power_up(struct ath10k *ar)
 		atomic_set(&ar_snoc->pm_ops_inprogress, 0);
 	}
 
-	if (ar->state == ATH10K_STATE_ON ||
-	    test_bit(ATH10K_FLAG_CRASH_FLUSH, &ar->dev_flags)) {
-		ret = ath10k_snoc_bus_configure(ar);
-		if (ret) {
-			ath10k_err(ar, "failed to configure bus: %d\n", ret);
-			return ret;
-		}
+	ret = ath10k_snoc_bus_configure(ar);
+	if (ret) {
+		ath10k_err(ar, "failed to configure bus: %d\n", ret);
+		return ret;
 	}
+
 	ret = ath10k_snoc_init_pipes(ar);
 	if (ret) {
 		ath10k_err(ar, "failed to initialize CE: %d\n", ret);
@@ -1571,6 +1559,50 @@ static int ath10k_hw_power_off(struct ath10k *ar)
 	return ret;
 }
 
+static int ath10k_snoc_hif_suspend(struct ath10k *ar)
+{
+	struct ath10k_snoc *ar_snoc = ath10k_snoc_priv(ar);
+	int ret = 0;
+
+	if (!ar_snoc)
+		return -EINVAL;
+
+	if (!device_may_wakeup(ar->dev))
+		return -EINVAL;
+
+	ret = enable_irq_wake(ar_snoc->ce_irqs[WCN3990_WAKE_IRQ_CE].irq_line);
+	if (ret) {
+		ath10k_dbg(ar, ATH10K_DBG_SNOC,
+			   "HIF Suspend: Failed to enable wakeup IRQ\n");
+		return ret;
+	}
+
+	ath10k_dbg(ar, ATH10K_DBG_SNOC, "HIF Suspended\n");
+	return ret;
+}
+
+static int ath10k_snoc_hif_resume(struct ath10k *ar)
+{
+	struct ath10k_snoc *ar_snoc = ath10k_snoc_priv(ar);
+	int ret = 0;
+
+	if (!ar_snoc)
+		return -EINVAL;
+
+	if (!device_may_wakeup(ar->dev))
+		return -EINVAL;
+
+	ret = disable_irq_wake(ar_snoc->ce_irqs[WCN3990_WAKE_IRQ_CE].irq_line);
+	if (ret) {
+		ath10k_dbg(ar, ATH10K_DBG_SNOC,
+			   "HIF Resume: Failed to disable wakeup IRQ\n");
+		return ret;
+	}
+
+	ath10k_dbg(ar, ATH10K_DBG_SNOC, "HIF Resumed\n");
+	return ret;
+}
+
 static const struct ath10k_hif_ops ath10k_snoc_hif_ops = {
 	.tx_sg			= ath10k_snoc_hif_tx_sg,
 	.start			= ath10k_snoc_hif_start,
@@ -1583,6 +1615,8 @@ static const struct ath10k_hif_ops ath10k_snoc_hif_ops = {
 	.power_down		= ath10k_snoc_hif_power_down,
 	.read32			= ath10k_snoc_read32,
 	.write32		= ath10k_snoc_write32,
+	.suspend		= ath10k_snoc_hif_suspend,
+	.resume			= ath10k_snoc_hif_resume,
 };
 
 static const struct ath10k_bus_ops ath10k_snoc_bus_ops = {
@@ -1595,9 +1629,9 @@ static int ath10k_snoc_probe(struct platform_device *pdev)
 	int ret;
 	struct ath10k *ar;
 	struct ath10k_snoc *ar_snoc;
+	struct ath10k_snoc_qmi_config *qmi_cfg;
 	enum ath10k_hw_rev hw_rev;
 	struct device *dev;
-	u32 chip_id;
 	u32 i;
 
 	dev = &pdev->dev;
@@ -1623,6 +1657,7 @@ static int ath10k_snoc_probe(struct platform_device *pdev)
 		goto err_core_destroy;
 	}
 
+	qmi_cfg = &ar_snoc->qmi_cfg;
 	spin_lock_init(&ar_snoc->opaque_ctx.ce_lock);
 	ar_snoc->opaque_ctx.bus_ops = &ath10k_snoc_bus_ops;
 	ath10k_snoc_resource_init(ar);
@@ -1658,12 +1693,6 @@ static int ath10k_snoc_probe(struct platform_device *pdev)
 		goto err_hw_power_off;
 	}
 
-	ret = ath10k_snoc_bus_configure(ar);
-	if (ret) {
-		ath10k_err(ar, "failed to configure bus: %d\n", ret);
-		goto err_hw_power_off;
-	}
-
 	ret = ath10k_snoc_alloc_pipes(ar);
 	if (ret) {
 		ath10k_err(ar, "failed to allocate copy engine pipes: %d\n",
@@ -1680,12 +1709,18 @@ static int ath10k_snoc_probe(struct platform_device *pdev)
 		goto err_free_pipes;
 	}
 
-	chip_id = ar_snoc->target_info.soc_version;
+	ar_snoc->drv_state = ATH10K_DRIVER_STATE_PROBED;
 	/* chip id needs to be retrieved from platform driver */
-	ret = ath10k_core_register(ar, chip_id);
-	if (ret) {
-		ath10k_err(ar, "failed to register driver core: %d\n", ret);
-		goto err_free_irq;
+	if (atomic_read(&qmi_cfg->fw_ready)) {
+		ret = ath10k_core_register(ar,
+					   ar_snoc->target_info.soc_version);
+		if (ret) {
+			ath10k_err(ar,
+				   "failed to register driver core: %d\n",
+				   ret);
+			goto err_free_irq;
+		}
+		ar_snoc->drv_state = ATH10K_DRIVER_STATE_STARTED;
 	}
 
 	ath10k_snoc_modem_ssr_register_notifier(ar);

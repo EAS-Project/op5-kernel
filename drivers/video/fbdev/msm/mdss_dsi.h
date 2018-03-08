@@ -631,8 +631,6 @@ struct mdss_dsi_ctrl_pdata {
 	int panel_min_index;
 //#endif
 	int disp_vci_en_gpio;
-	struct delayed_work techeck_work;
-	struct completion te_comp;
 //#endif
 	const char *px_clk_src_name;
 	struct	clk	*px_clk_src;
@@ -662,6 +660,7 @@ struct dsi_status_data {
 	struct notifier_block fb_notifier;
 	struct delayed_work check_status;
 	struct msm_fb_data_type *mfd;
+	struct work_struct irq_done;
 };
 
 void mdss_dsi_read_hw_revision(struct mdss_dsi_ctrl_pdata *ctrl);

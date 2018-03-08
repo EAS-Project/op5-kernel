@@ -133,6 +133,9 @@ static noinline depot_stack_handle_t save_stack(gfp_t flags)
 	};
 	depot_stack_handle_t handle;
 
+	if (unlikely(!page_ext))
+		return;
+
 	save_stack_trace(&trace);
 	if (trace.nr_entries != 0 &&
 	    trace.entries[trace.nr_entries-1] == ULONG_MAX)

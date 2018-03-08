@@ -17,8 +17,10 @@
 #define _WOW_H_
 
 struct ath10k_wow {
+	u32 wakeup_reason;
 	u32 max_num_patterns;
 	struct completion wakeup_completed;
+	struct cfg80211_wowlan_wakeup wakeup;
 	struct wiphy_wowlan_support wowlan_support;
 };
 
@@ -28,7 +30,10 @@ int ath10k_wow_init(struct ath10k *ar);
 int ath10k_wow_op_suspend(struct ieee80211_hw *hw,
 			  struct cfg80211_wowlan *wowlan);
 int ath10k_wow_op_resume(struct ieee80211_hw *hw);
-
+void ath10k_wow_op_set_wakeup(struct ieee80211_hw *hw, bool enabled);
+void ath10k_wow_op_set_rekey_data(struct ieee80211_hw *hw,
+				  struct ieee80211_vif *vif,
+				  struct cfg80211_gtk_rekey_data *data);
 #else
 
 static inline int ath10k_wow_init(struct ath10k *ar)
