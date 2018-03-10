@@ -26,7 +26,7 @@ DEFCONFIG="oneplus5_defconfig"
 
 # Kernel Details
 VER=RenderZenith
-VARIANT="OP5-OOS-0-EAS"
+VARIANT="OP5-OOS-O-EAS"
 
 # Vars
 export LOCALVERSION=~`echo $VER`
