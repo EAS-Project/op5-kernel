@@ -131,8 +131,9 @@ typedef struct {
 	int abnormal_reboot_count;
 	int update_count;
 	int fastboot_count;
-	/* liochenBSP, 2017/07/17, Add param unlock_count */
 	int unlock_count;
+	int poweron_count;
+	int poweroff_count;
 } param_phonehistory_t;
 /***************************************************/
 
@@ -202,7 +203,6 @@ typedef struct
     param_product_desc_head_t sid_head;
     /* Only for wlan evm chip */
     int use_special_boarddata;
-    //#endif /* VENDOR_EDIT */
     //Add value must below here
 }param_misc_t;
 
@@ -240,6 +240,7 @@ typedef struct
 	int boot_stage;
 	int data_stage;
 	int reset_devinfo;
+	int intranet;
 }param_download_t;
 
 typedef enum {
@@ -315,7 +316,6 @@ int get_param_gamma_select(uint * gamma_select);
 int get_param_pcba_number(char * pcbe_number);
 /* Only for wlan evm chip */
 int get_param_nvm_boarddata(uint * nvm_boarddata_select);
-//#endif /* VENDOR_EDIT */
 //yankelong add
 int set_param_lcm_srgb_mode(uint * lcm_srgb_mdoe);
 int get_param_lcm_srgb_mode(uint *lcm_srgb_mode);
@@ -329,15 +329,14 @@ int set_param_lcm_reading_mode(uint * lcm_reading_mdoe);
 int get_param_lcm_reading_mode(uint *lcm_reading_mode);
 
 int get_param_download_info(param_download_t *download_info);
-/* liochen@BSP, 2016/07/26, store crash record in PARAM */
 int get_param_crash_record_count(uint *crash_record_count);
 int set_param_crash_record_count(uint *crash_record_count);
 int set_param_crash_record_value(uint offset, char *crash_record_value, uint size);
 
-/*  yangfb@BSP, 2016/09/14, store chager type record in PARAM  */
 int get_param_charger_type_count(uint *type_record_count);
 int set_param_charger_type_count(uint *type_record_count);
 int set_param_charger_type_value(uint offset, char *crash_record_value, uint size);
-
+int get_param_poweroff_count(uint *poweroff_count);
+int set_param_poweroff_count(uint *poweroff_count);
 //end
 #endif

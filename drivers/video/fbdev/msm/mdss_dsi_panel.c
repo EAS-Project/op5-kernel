@@ -30,7 +30,7 @@
 #include <linux/clk.h>
 #include "mdss_dsi_iris2p_lightup.h"
 #include <linux/project_info.h>
-
+//#endif
 
 #define DT_CMD_HDR 6
 #define DEFAULT_MDP_TRANSFER_TIME 14000
@@ -226,7 +226,7 @@ static struct dsi_cmd_desc backlight_cmd2 = {
 	{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(led_pwm2)},
 	led_pwm2
 };
-
+//#endif
 static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dcs_cmd_req cmdreq;
@@ -240,29 +240,29 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 
 	pr_debug("%s: level=%d\n", __func__, level);
 
-    if (ctrl->bklt_max > 255){
-        u8 ldata = 0;
-        u8 hdata = 0;
+	if (ctrl->bklt_max > 255) {
+		u8 ldata = 0;
+		u8 hdata = 0;
 
-        if (ctrl->bl_high2bit){
-            ldata = level & 0x0ff;
-            hdata = (level >> 8) & 0x03;
-            led_pwm2[2] = ldata;
-            led_pwm2[1] = hdata;
-        } else{
-            ldata = level & 0x03;
-            hdata = (level >> 2) & 0x0ff;
-            led_pwm2[2] = ldata;
-            led_pwm2[1] = hdata;
-        }
-    } else
-	led_pwm1[1] = (unsigned char)level;
+		if (ctrl->bl_high2bit) {
+			ldata = level & 0x0ff;
+			hdata = (level >> 8) & 0x03;
+			led_pwm2[2] = ldata;
+			led_pwm2[1] = hdata;
+		} else {
+			ldata = level & 0x03;
+			hdata = (level >> 2) & 0x0ff;
+			led_pwm2[2] = ldata;
+			led_pwm2[1] = hdata;
+		}
+	} else
+		led_pwm1[1] = (unsigned char)level;
 
 	memset(&cmdreq, 0, sizeof(cmdreq));
-    if (ctrl->bklt_max > 255){
-        cmdreq.cmds = &backlight_cmd2;
-    } else
-	cmdreq.cmds = &backlight_cmd;
+	if (ctrl->bklt_max > 255)
+		cmdreq.cmds = &backlight_cmd2;
+	else
+		cmdreq.cmds = &backlight_cmd;
 	cmdreq.cmds_cnt = 1;
 	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
 	cmdreq.rlen = 0;
@@ -533,6 +533,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			gpio_free(ctrl_pdata->lcd_mode_sel_gpio);
 		}
 	    usleep_range(10* 1000, 10* 1000);
+    //#endif
 	}
 
 exit:
@@ -1042,7 +1043,7 @@ static u32 backlight_level_remap(struct mdss_dsi_ctrl_pdata *ctrl, u32 level)
     }
 	return remap_level;
 }
-
+//#endif
 static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 							u32 bl_level)
 {
@@ -1054,7 +1055,7 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
         printk("---backlight level = %d---\n", bl_level);
         first_bl_level = (bl_level == 0)? true : false;
 	}
-
+//#endif
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
 		return;
@@ -1067,7 +1068,7 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
        pr_debug("%s goto backlight level remap\n", __func__);
        bl_level = backlight_level_remap(ctrl_pdata, bl_level);
     }
-  
+  //#endif
 	/*
 	 * Some backlight controllers specify a minimum duty cycle
 	 * for the backlight brightness. If the brightness is less
@@ -1147,7 +1148,7 @@ int mdss_dsi_panel_get_acl_mode(struct mdss_dsi_ctrl_pdata *ctrl)
 {
    return ctrl->acl_mode;
 }
-
+//#endif
 
 int mdss_dsi_panel_set_hbm_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
@@ -1183,7 +1184,7 @@ int mdss_dsi_panel_get_hbm_mode(struct mdss_dsi_ctrl_pdata *ctrl)
 {
     return ctrl->hbm_mode;
 }
-
+//#endif
 int mdss_dsi_panel_set_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dsi_panel_cmds *srgb_on_cmds;
@@ -1218,7 +1219,7 @@ int mdss_dsi_panel_get_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl)
 {
    return ctrl->SRGB_mode;
 }
-
+//#endif
 int mdss_dsi_panel_set_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dsi_panel_cmds *adobe_rgb_on_cmds;
@@ -1253,7 +1254,7 @@ int mdss_dsi_panel_get_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl)
 {
    return ctrl->Adobe_RGB_mode;
 }
-
+//#endif
 int mdss_dsi_panel_set_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dsi_panel_cmds *dci_p3_on_cmds;
@@ -1288,7 +1289,7 @@ int mdss_dsi_panel_get_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl)
 {
    return ctrl->dci_p3_mode;
 }
-
+//#endif
 int mdss_dsi_read_panel_serial_number(struct mdss_dsi_ctrl_pdata *ctrl, char *buf, int len)
 {
 	struct dcs_cmd_req cmdreq;
@@ -1375,7 +1376,7 @@ int mdss_dsi_panel_get_serial_number(struct mdss_dsi_ctrl_pdata *ctrl)
     mutex_unlock(&ctrl->panel_mode_lock);
 	return 0;
 }
-
+//#endif
 int mdss_dsi_panel_set_night_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dsi_panel_cmds *night_mode_on_cmds;
@@ -1493,6 +1494,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
     pr_err("%s start\n", __func__);
+//#endif
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
@@ -1516,30 +1518,33 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
     if (ctrl->iris_enabled){
         iris_init(ctrl);
         iris_panel_cmds(ctrl, &ctrl->on_cmds);
-	}else
+    } else
 	if (on_cmds->cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, on_cmds, CMD_REQ_COMMIT);
     mutex_lock(&ctrl->panel_mode_lock);
     ctrl->is_panel_on = true;
     mutex_unlock(&ctrl->panel_mode_lock);
-
+//#endif
 	if (mdss_dsi_panel_get_acl_mode(ctrl)){
 		mdss_dsi_panel_set_acl(ctrl,
 		    mdss_dsi_panel_get_acl_mode(ctrl));
 	}
-
+//#endif
     if (mdss_dsi_panel_get_srgb_mode(ctrl)){
         mdss_dsi_panel_set_srgb_mode(ctrl,
             mdss_dsi_panel_get_srgb_mode(ctrl));
     }
+//#endif
     if (mdss_dsi_panel_get_adobe_rgb_mode(ctrl)){
         mdss_dsi_panel_set_adobe_rgb_mode(ctrl,
             mdss_dsi_panel_get_adobe_rgb_mode(ctrl));
     }
+//#endif
     if (mdss_dsi_panel_get_dci_p3_mode(ctrl)){
         mdss_dsi_panel_set_dci_p3_mode(ctrl,
             mdss_dsi_panel_get_dci_p3_mode(ctrl));
     }
+//#endif
     if (mdss_dsi_panel_get_night_mode(ctrl)){
         mdss_dsi_panel_set_night_mode(ctrl,
             mdss_dsi_panel_get_night_mode(ctrl));
@@ -1554,6 +1559,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		    mdss_dsi_panel_get_adaption_mode(ctrl));
 	}
 
+//#endif
 	if (pinfo->compression_mode == COMPRESSION_DSC)
 		mdss_dsi_panel_dsc_pps_send(ctrl, pinfo);
 
@@ -1566,6 +1572,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 end:
 	pr_debug("%s:-\n", __func__);
     pr_err("%s end\n", __func__);
+//#endif
 	return ret;
 }
 
@@ -1581,7 +1588,7 @@ static int mdss_dsi_post_panel_on(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
     pr_err("%s start\n", __func__);
-
+//#endif
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
@@ -1607,7 +1614,7 @@ static int mdss_dsi_post_panel_on(struct mdss_panel_data *pdata)
 end:
 	pr_debug("%s:-\n", __func__);
     pr_err("%s end\n", __func__);
-
+//#endif
 	return 0;
 }
 
@@ -1621,7 +1628,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
     pr_err("%s start\n", __func__);
-
+//#endif
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
@@ -1635,7 +1642,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
     mutex_lock(&ctrl->panel_mode_lock);
     ctrl->is_panel_on = false;
     mutex_unlock(&ctrl->panel_mode_lock);
-
+//#endif
     if (ctrl->iris_enabled){
         iris_lightoff(ctrl);
         iris_panel_cmds(ctrl, &ctrl->off_cmds);
@@ -1651,7 +1658,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 end:
 	pr_debug("%s:-\n", __func__);
     pr_err("%s end\n", __func__);
-
+//#endif
 	return 0;
 }
 
@@ -3559,6 +3566,7 @@ static int mdss_panel_parse_dt(struct device_node *np,
         iris_init_params_parse(np, ctrl_pdata);
         iris_init_cmd_setup(ctrl_pdata);
 	}
+//#endif
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->acl_cmds,
 		"qcom,mdss-dsi-panel-acl-command",
 		"qcom,mdss-dsi-acl-command-state");
@@ -3566,12 +3574,14 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	ctrl_pdata->acl_ncmds = (!rc ? tmp : 0);
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-acl-npayload", &tmp);
 	ctrl_pdata->acl_npayload = (!rc ? tmp : 0);
+//#endif
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->hbm_on_cmds,
 		"qcom,mdss-dsi-panel-hbm-on-command",
 		"qcom,mdss-dsi-hbm-command-state");
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->hbm_off_cmds,
 		"qcom,mdss-dsi-panel-hbm-off-command",
 		"qcom,mdss-dsi-hbm-command-state");
+//#endif
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->srgb_on_cmds,
 		"qcom,mdss-dsi-panel-srgb-on-command",
 		"qcom,mdss-dsi-srgb-command-state");
@@ -3596,18 +3606,21 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->adaption_mode_off_cmds,
 		"qcom,mdss-dsi-panel-adaption-mode-off-command",
 		"qcom,mdss-dsi-adaption-mode-command-state");
+//#endif
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->Adobe_RGB_on_cmds,
 		"qcom,mdss-dsi-panel-Adobe-rgb-on-command",
 		"qcom,mdss-dsi-Adobe-rgb-command-state");
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->Adobe_RGB_off_cmds,
 		"qcom,mdss-dsi-panel-Adobe-rgb-off-command",
 		"qcom,mdss-dsi-Adobe-rgb-command-state");
+//#endif
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->dci_p3_on_cmds,
 		"qcom,mdss-dsi-panel-dci-p3-on-command",
 		"qcom,mdss-dsi-dci-p3-command-state");
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->dci_p3_off_cmds,
 		"qcom,mdss-dsi-panel-dci-p3-off-command",
 		"qcom,mdss-dsi-dci-p3-command-state");
+//#endif
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->panel_serial_num_cmds,
 		"qcom,mdss-dsi-panel-seria-num-command",
 		"qcom,mdss-dsi-panel-seria-num-state");
@@ -3626,11 +3639,11 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np,
 	    "qcom,mdss-dsi-panel-seria-num-min-index", &tmp);
 	ctrl_pdata->panel_min_index = (!rc ? tmp : 0);
-
+//#endif
 	ctrl_pdata->high_brightness_panel= of_property_read_bool(np,
 					"qcom,mdss-dsi-high-brightness-panel");
     pr_err("high brightness panel: %d\n", ctrl_pdata->high_brightness_panel);
-
+//#endif
 	ctrl_pdata->bl_high2bit = of_property_read_bool(np,
 					"qcom,mdss-bl-high2bit");
 //#endif
@@ -3671,7 +3684,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	static const char *panel_version;
 	static const char *backlight_manufacture;
 	static const char *backlight_version;
-
+//#endif
 	if (!node || !ctrl_pdata) {
 		pr_err("%s: Invalid arguments\n", __func__);
 		return -ENODEV;
@@ -3710,7 +3723,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	push_component_info(BACKLIGHT, (char *)backlight_version,
 	    (char *)backlight_manufacture);
 	mutex_init(&ctrl_pdata->panel_mode_lock);
-
+//#endif
 	rc = mdss_panel_parse_dt(node, ctrl_pdata);
 	if (rc) {
 		pr_err("%s:%d panel dt parse failed\n", __func__, __LINE__);

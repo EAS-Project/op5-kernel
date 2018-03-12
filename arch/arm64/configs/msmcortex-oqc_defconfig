@@ -786,3 +786,4 @@ CONFIG_MSM_DEBUG_LAR_UNLOCK=y
 #neiltsai add for debugging
 CONFIG_CORESIGHT_DBGUI=y
 #neiltsai, 20170415, add for JTAG debugging
+CONFIG_NET_CLS_CGROUP=y
