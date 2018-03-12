@@ -1870,7 +1870,6 @@ void __init kmemleak_init(void)
 {
 	int i;
 	unsigned long flags;
-//++add by lyb@BSP instead CONFIG_DEBUG_KMEMLEAK_DEFAULT_OFF with cmdline kmemleak_detect
     if(0 == oem_kmemleak_flag){
 #ifdef CONFIG_DEBUG_KMEMLEAK_DEFAULT_OFF
 	if (!kmemleak_skip_disable) {
@@ -1882,7 +1881,6 @@ void __init kmemleak_init(void)
     }
 
 	pr_info("Kernel memory leak detector enabled\n");
-//-- add by lyb@BSP instead CONFIG_DEBUG_KMEMLEAK_DEFAULT_OFF with cmdline kmemleak_detect
 
 	jiffies_min_age = msecs_to_jiffies(MSECS_MIN_AGE);
 	jiffies_scan_wait = msecs_to_jiffies(SECS_SCAN_WAIT * 1000);
@@ -1992,7 +1990,6 @@ static int __init kmemleak_late_init(void)
 }
 late_initcall(kmemleak_late_init);
 
-//++add by lyb@BSP for kmemleak detect
 static int __init kmem_leak_detect(char *str)
 {
     if(str == NULL){
@@ -2011,4 +2008,3 @@ static int __init kmem_leak_detect(char *str)
 }
 
 early_param("kmemleak_detect", kmem_leak_detect);
-//-- add by lyb@BSP for kmemleak

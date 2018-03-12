@@ -42,6 +42,7 @@
 #define MAX_NR_GPIO 300
 #define PS_HOLD_OFFSET 0x820
 
+static int resume_wakeup_flag = 0;
 bool need_show_pinctrl_irq;
 bool fp_irq_cnt;
 /**
@@ -820,6 +821,38 @@ static struct irq_chip msm_gpio_irq_chip = {
 	.irq_set_wake   = msm_gpio_irq_set_wake,
 };
 
+static void init_resume_wakeup_flag(void)
+{
+        resume_wakeup_flag = 0;
+}
+
+static int is_speedup_irq(struct irq_desc *desc, char *irq_name)
+{
+        return strstr(desc->action->name, irq_name) != NULL;
+}
+
+static void set_resume_wakeup_flag(int irq)
+{
+        struct irq_desc *desc;
+        desc = irq_to_desc(irq);
+
+        if (desc && desc->action && desc->action->name) {
+                if (is_speedup_irq(desc, "synaptics,s3320"))
+                        resume_wakeup_flag = 1;
+        }
+}
+
+int get_resume_wakeup_flag(void)
+{
+        int flag = resume_wakeup_flag;
+
+        pr_debug("%s: flag = %d\n", __func__, flag);
+        /* Clear it for next calling */
+        init_resume_wakeup_flag();
+
+        return flag;
+}
+
 static void msm_gpio_irq_handler(struct irq_desc *desc)
 {
 	struct gpio_chip *gc = irq_desc_get_handler_data(desc);
@@ -834,6 +867,7 @@ static void msm_gpio_irq_handler(struct irq_desc *desc)
 
 	chained_irq_enter(chip, desc);
 
+        init_resume_wakeup_flag();
 	/*
 	 * Each pin has it's own IRQ status register, so use
 	 * enabled_irq bitmap to limit the number of reads.
@@ -848,6 +882,7 @@ static void msm_gpio_irq_handler(struct irq_desc *desc)
 			/* ++add by lyb@bsp for printk wakeup irqs */
 			if (!!need_show_pinctrl_irq) {
 				need_show_pinctrl_irq = false;
+				set_resume_wakeup_flag(irq_pin);
 				strlcpy(irq_name,
 				irq_to_desc(irq_pin)->action->name, 16);
 				if (strnstr(irq_name,

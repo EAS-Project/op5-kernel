@@ -3421,9 +3421,6 @@ static int fg_psy_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY_RAW:
 		rc = fg_get_msoc_raw(chip, &pval->intval);
 		break;
-	case POWER_SUPPLY_PROP_CAPACITY_RAW:
-		rc = fg_get_msoc_raw(chip, &pval->intval);
-		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		if (chip->use_external_fg && external_fg
 				&& external_fg->get_battery_mvolts)

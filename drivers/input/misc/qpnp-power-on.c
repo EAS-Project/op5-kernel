@@ -34,6 +34,9 @@
 #include <linux/power_supply.h>
 #include <linux/syscalls.h>
 #include <linux/power/oem_external_fg.h>
+#include <linux/atomic.h>
+#include <linux/param_rw.h>
+#include <linux/oneplus/boot_mode.h>
 
 #define CREATE_MASK(NUM_BITS, POS) \
 	((unsigned char) (((1 << (NUM_BITS)) - 1) << (POS)))
@@ -199,7 +202,7 @@ struct pon_regulator {
 	u32			bit;
 	bool			enabled;
 };
-
+	struct delayed_work	press_work;
 static int pon_ship_mode_en;
 module_param_named(
 	ship_mode_en, pon_ship_mode_en, int, 0600
@@ -811,6 +814,7 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		if ((pon_rt_sts & pon_rt_bit) == 0)
 		{
 			printk("Power-Key UP\n");
+            schedule_work(&pon->up_work);
 			cancel_delayed_work(&pon->press_work);
 		}else{
 			printk("Power-Key DOWN\n");
@@ -849,11 +853,11 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		input_report_key(pon->pon_input, cfg->key_code, 1);
 		input_sync(pon->pon_input);
 	}
+
 	input_report_key(pon->pon_input, cfg->key_code, key_status);
 	input_sync(pon->pon_input);
 
 	cfg->old_state = !!key_status;
-
 
 	return 0;
 }
@@ -1008,6 +1012,56 @@ err_return:
 	return;
 }
 
+int check_powerkey_count(int press)
+{
+	int ret=0;
+	int param_poweroff_count=0;
+
+	ret = get_param_poweroff_count(&param_poweroff_count);
+
+	if(press)
+		param_poweroff_count ++ ;
+	else
+		param_poweroff_count -- ;
+
+	ret = set_param_poweroff_count(&param_poweroff_count);
+	pr_info("param_poweroff_count=%d \n",param_poweroff_count);
+	return 0;
+}
+
+int qpnp_powerkey_state_check(struct qpnp_pon *pon,int up)
+{
+	int rc =0;
+
+	if (get_boot_mode() !=	MSM_BOOT_MODE__NORMAL)
+		return 0;
+
+	if ( up ) {
+		rc = atomic_read(&pon->press_count);
+		if (rc < 1) {
+			atomic_inc(&pon->press_count);
+			check_powerkey_count(1);
+		}
+	}
+	else {
+		rc = atomic_read(&pon->press_count);
+		if(rc > 0) {
+			atomic_dec(&pon->press_count);
+			check_powerkey_count(0);
+		}
+	}
+	return 0;
+}
+
+static void up_work_func(struct work_struct *work)
+{
+	struct qpnp_pon *pon =
+		container_of(work, struct qpnp_pon, up_work);
+
+	qpnp_powerkey_state_check(pon,0);
+	return;
+}
+
 static void press_work_func(struct work_struct *work)
 {
 	int rc;
@@ -1027,8 +1081,10 @@ static void press_work_func(struct work_struct *work)
 		dev_err(&pon->pdev->dev, "Unable to read PON RT status\n");
 		goto err_return;
 	}
-	if ((pon_rt_sts & QPNP_PON_KPDPWR_N_SET) == 1)
+	if ((pon_rt_sts & QPNP_PON_KPDPWR_N_SET) == 1) {
+        qpnp_powerkey_state_check(pon,1);
 		dev_err(&pon->pdev->dev, "after 3s Power-Key is still DOWN\n");
+    }
 	msleep(20);
 	sys_sync();
 err_return:
@@ -2568,6 +2624,7 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 
 	INIT_DELAYED_WORK(&pon->bark_work, bark_work_func);
 	INIT_DELAYED_WORK(&pon->press_work, press_work_func);
+    INIT_WORK(&pon->up_work, up_work_func);
 	/* register the PON configurations */
 	rc = qpnp_pon_config_init(pon);
 	if (rc) {

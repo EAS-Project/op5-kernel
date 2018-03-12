@@ -3794,7 +3794,6 @@ int ufshcd_read_device_desc(struct ufs_hba *hba, u8 *buf, u32 size)
 	return ufshcd_read_desc(hba, QUERY_DESC_IDN_DEVICE, 0, buf, size);
 }
 
-/* liochen@BSP 2016/11/30, Add ufs info into *##*37847# */
 int ufshcd_read_geometry_desc(struct ufs_hba *hba, u8 *buf, u32 size)
 {
        return ufshcd_read_desc(hba, QUERY_DESC_IDN_GEOMETRY, 0, buf, size);
@@ -7526,7 +7525,6 @@ static int ufshcd_probe_hba(struct ufs_hba *hba)
 		}
 
 
-		/* liochen@BSP, 2016/11/30, Add ufs info into *##*37847# */
 		ufs_fill_info(hba);
 
 		scsi_scan_host(hba->host);

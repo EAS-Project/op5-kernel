@@ -1609,6 +1609,10 @@ struct task_struct {
         //huruihuan add for kill task in D status
 	unsigned int kill_flag;
 	struct timespec ttu;
+
+//xiaoxiaohuan add for fd leak debug
+    bool dump_fd_leak;
+
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
 	int on_cpu;
