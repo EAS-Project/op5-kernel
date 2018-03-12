@@ -1893,6 +1893,7 @@ static int hdmi_tx_init_edid(struct hdmi_tx_ctrl *hdmi_ctrl)
 	edid_init_data.kobj = hdmi_ctrl->kobj;
 	edid_init_data.ds_data = hdmi_ctrl->ds_data;
 	edid_init_data.max_pclk_khz = hdmi_ctrl->max_pclk_khz;
+	edid_init_data.yc420_support = true;
 
 	edid_data = hdmi_edid_init(&edid_init_data);
 	if (!edid_data) {
@@ -3282,7 +3283,7 @@ static int hdmi_tx_power_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 		hdmi_ctrl->panel_ops.off(pdata);
 
 	hdmi_tx_set_mode(hdmi_ctrl, false);
-	hdmi_tx_phy_reset(hdmi_ctrl);
+
 	hdmi_tx_set_mode(hdmi_ctrl, true);
 
 	hdmi_tx_core_off(hdmi_ctrl);

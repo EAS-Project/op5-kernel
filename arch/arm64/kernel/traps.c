@@ -442,8 +442,7 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 
 static void cntvct_read_handler(unsigned int esr, struct pt_regs *regs)
 {
-	int rt = (esr & ESR_ELx_SYS64_ISS_RT_MASK)
-			>> ESR_ELx_SYS64_ISS_RT_SHIFT;
+	int rt = (esr & ESR_ELx_SYS64_ISS_RT_MASK) >> ESR_ELx_SYS64_ISS_RT_SHIFT;
 
 	isb();
 	if (rt != 31)
@@ -453,8 +452,7 @@ static void cntvct_read_handler(unsigned int esr, struct pt_regs *regs)
 
 static void cntfrq_read_handler(unsigned int esr, struct pt_regs *regs)
 {
-	int rt = (esr & ESR_ELx_SYS64_ISS_RT_MASK)
-			>> ESR_ELx_SYS64_ISS_RT_SHIFT;
+	int rt = (esr & ESR_ELx_SYS64_ISS_RT_MASK) >> ESR_ELx_SYS64_ISS_RT_SHIFT;
 
 	if (rt != 31)
 		regs->regs[rt] = read_sysreg(cntfrq_el0);

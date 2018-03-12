@@ -1145,7 +1145,7 @@ static int fg_batt_miss_irq_en_cb(struct votable *votable, void *data,
 		enable_irq_wake(chip->irqs[BATT_MISSING_IRQ].irq);
 	} else {
 		disable_irq_wake(chip->irqs[BATT_MISSING_IRQ].irq);
-		disable_irq(chip->irqs[BATT_MISSING_IRQ].irq);
+		disable_irq_nosync(chip->irqs[BATT_MISSING_IRQ].irq);
 	}
 
 	return 0;
@@ -1164,7 +1164,7 @@ static int fg_delta_bsoc_irq_en_cb(struct votable *votable, void *data,
 		enable_irq_wake(chip->irqs[BSOC_DELTA_IRQ].irq);
 	} else {
 		disable_irq_wake(chip->irqs[BSOC_DELTA_IRQ].irq);
-		disable_irq(chip->irqs[BSOC_DELTA_IRQ].irq);
+		disable_irq_nosync(chip->irqs[BSOC_DELTA_IRQ].irq);
 	}
 
 	return 0;
@@ -3417,6 +3417,9 @@ static int fg_psy_get_property(struct power_supply *psy,
 			pval->intval = external_fg->get_battery_soc();
 		else
 			pval->intval = 50;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY_RAW:
+		rc = fg_get_msoc_raw(chip, &pval->intval);
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY_RAW:
 		rc = fg_get_msoc_raw(chip, &pval->intval);
