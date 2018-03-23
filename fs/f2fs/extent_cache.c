@@ -176,8 +176,15 @@ static void __drop_largest_extent(struct inode *inode,
 	}
 }
 
-/* return true, if inode page is changed */
-bool f2fs_init_extent_tree(struct inode *inode, struct f2fs_extent *i_ext)
+void f2fs_drop_largest_extent(struct inode *inode, pgoff_t fofs)
+{
+	if (!f2fs_may_extent_tree(inode))
+		return;
+
+	__drop_largest_extent(inode, fofs, 1);
+}
+
+static bool __f2fs_init_extent_tree(struct inode *inode, struct f2fs_extent *i_ext)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 	struct extent_tree *et;
@@ -213,6 +220,17 @@ bool f2fs_init_extent_tree(struct inode *inode, struct f2fs_extent *i_ext)
 out:
 	write_unlock(&et->lock);
 	return false;
+}
+
+bool f2fs_init_extent_tree(struct inode *inode, struct f2fs_extent *i_ext)
+{
+	bool ret;
+	ret = __f2fs_init_extent_tree(inode, i_ext);
+
+	if (!F2FS_I(inode)->extent_tree)
+		set_inode_flag(F2FS_I(inode), FI_NO_EXTENT);
+
+	return ret;
 }
 
 static bool f2fs_lookup_extent_tree(struct inode *inode, pgoff_t pgofs,
