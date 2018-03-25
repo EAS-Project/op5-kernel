@@ -610,8 +610,8 @@ retry_rx_alloc:
 		if (!req) {
 			if (acc_rx_req_len <= BULK_BUFFER_SIZE)
 				goto fail;
-		for (i = 0; i < RX_REQ_MAX; i++)
-			acc_request_free(dev->rx_req[i], dev->ep_out);
+			for (i = 0; i < RX_REQ_MAX; i++)
+				acc_request_free(dev->rx_req[i], dev->ep_out);
 			acc_rx_req_len /= 2;
 			goto retry_rx_alloc;
 		}
