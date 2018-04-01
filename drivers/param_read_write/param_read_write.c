@@ -293,7 +293,6 @@ static int param_get_unlock_count(char *val, struct kernel_param *kp)
 
 module_param_call(unlock_count, NULL, param_get_unlock_count, &unlock_count, 0644);
 
-/* liochen@BSP, 2017/07/31, Add cust_flag */
 static int cust_flag = 0;
 
 static int param_get_cust_flag(char *val, struct kernel_param *kp)
@@ -311,7 +310,6 @@ static int param_get_cust_flag(char *val, struct kernel_param *kp)
 }
 module_param_call(cust_flag, NULL, param_get_cust_flag, &cust_flag, 0444);
 
-/* liochen@BSP, 2017/06/30, Add normal_reboot_count and abnormal_reboot_count */
 static int normal_reboot_count = 0;
 static int param_set_normal_reboot_count(const char *val, struct kernel_param *kp)
 {
@@ -369,10 +367,8 @@ static int param_get_abnormal_reboot_count(char *val, struct kernel_param *kp)
 
 }
 module_param_call(abnormal_reboot_count, param_set_abnormal_reboot_count, param_get_abnormal_reboot_count, &abnormal_reboot_count, 0644);
-/* liochen@BSP, 2017/06/30, Add normal_reboot_count and abnormal_reboot_count */
 
 
-/* liochen@BSP, 2017/05/15, Add update_count */
 static int update_count = 0;
 static int param_set_update_count(const char *val, struct kernel_param *kp)
 {
@@ -419,7 +415,6 @@ static int param_get_fastboot_count(char *val, struct kernel_param *kp)
 }
 
 module_param_call(fastboot_count, NULL, param_get_fastboot_count, &fastboot_count, 0644);
-/* liochen@BSP, 2017/05/15, Add update_count */
 
 static ssize_t param_read(struct file *file, char __user *buff,
             size_t count, loff_t *pos)
@@ -631,7 +626,6 @@ static ssize_t param_dump_store(struct device *dev,
     return strnlen(buf,size);
 }
 
-/*yangfb add to store charger type begin,2016-09-14*/
 #define MAX_TYPE_RECORD_COUNT 48
 #define PARAM_CHG_TYPE_RECORD_SIZE 20
 
@@ -689,9 +683,6 @@ static ssize_t param_charger_type_dump_show(struct device *dev,
     return count_size;
 }
 
-/*yangfb add to store charger type end,2016-09-14*/
-
-/* liochen@BSP, 2016/07/26, store crash record in PARAM */
 #define MAX_RECORD_COUNT 16
 #define PARAM_CRASH_RECORD_SIZE 20
 static ssize_t param_crash_record_dump_show(struct device *dev,
@@ -749,10 +740,9 @@ static ssize_t param_crash_record_dump_show(struct device *dev,
 static DEVICE_ATTR(param_dump,0644,
     param_dump_show,param_dump_store);
 
-/* liochen@BSP, 2016/07/26, store crash record in PARAM */
 static DEVICE_ATTR(param_crash_record_dump,0444,
     param_crash_record_dump_show,NULL);
-/*yangfb add to store charger type ,2016-09-14*/
+
 static DEVICE_ATTR(param_charger_type_dump,0444,
     param_charger_type_dump_show,NULL);
 
@@ -773,7 +763,6 @@ static int __init param_device_init(void)
 		ret = -1;
 	}
 
-	/* liochen@BSP, 2016/07/26, store crash record in PARAM */
 	if(device_create_file(param_misc.this_device,
 	    &dev_attr_param_crash_record_dump) < 0)
 	{
@@ -782,7 +771,6 @@ static int __init param_device_init(void)
 		ret = -1;
 	}
 
-	/*yangfb add to store charger type ,2016-09-14*/
 	if(device_create_file(param_misc.this_device,
 	    &dev_attr_param_charger_type_dump) < 0)
 	{
@@ -907,7 +895,6 @@ int get_param_nvm_boarddata(uint * nvm_boarddata_select)
 	return ret;
 }
 EXPORT_SYMBOL(get_param_nvm_boarddata);
-//#endif /* VENDOR_EDIT */
 
 int get_param_pcba_number(char *pcba_number_select)
 {
@@ -1100,7 +1087,6 @@ int get_param_download_info(param_download_t *download_info)
 }
 EXPORT_SYMBOL(get_param_download_info);
 
-/*yangfb add to store charger type ,2016-09-14*/
 int get_param_charger_type_count(uint *type_record_count)
 {
     int ret;
@@ -1149,7 +1135,6 @@ int set_param_charger_type_value(uint offset, char *crash_record_value, uint siz
 EXPORT_SYMBOL(set_param_charger_type_value);
 
 
-/* liochen@BSP, 2016/07/26, store crash record in PARAM */
 int get_param_crash_record_count(uint *crash_record_count)
 {
     int ret;
@@ -1196,5 +1181,38 @@ int set_param_crash_record_value(uint offset, char *crash_record_value, uint siz
     return ret;
 }
 EXPORT_SYMBOL(set_param_crash_record_value);
+
+/*  store long press key record in PARAM */
+int get_param_poweroff_count(uint *poweroff_count)
+{
+    int ret;
+    uint32 sid_index = PARAM_SID_PHONE_HISTORY;
+
+    uint32 offset = offsetof(param_phonehistory_t, poweroff_count);
+
+    ret = get_param_by_index_and_offset(sid_index, offset, poweroff_count, sizeof(*poweroff_count));
+
+    if(ret < 0){
+        pr_info("%s[%d]  failed!\n",__func__, __LINE__);
+    }
+    return ret;
+}
+EXPORT_SYMBOL(get_param_poweroff_count);
+
+int set_param_poweroff_count(uint *poweroff_count)
+{
+    int ret;
+    uint32 sid_index = PARAM_SID_PHONE_HISTORY;
+
+    uint32 offset = offsetof(param_phonehistory_t, poweroff_count);
+
+    ret = set_param_by_index_and_offset(sid_index, offset, poweroff_count, sizeof(*poweroff_count));
+
+    if(ret < 0){
+        pr_info("%s[%d]  failed!\n",__func__, __LINE__);
+    }
+    return ret;
+}
+EXPORT_SYMBOL(set_param_poweroff_count);
 
 //end

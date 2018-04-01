@@ -93,44 +93,72 @@ msm_get_upgrade_download_version3(struct device *dev,
 		download_info.upgrade_download_version3);
 }
 
+static ssize_t
+msm_get_intranet(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+		download_info.intranet);
+}
 
 static struct device_attribute oem_attr_smt_download_time =
-	__ATTR(smt_download_time, S_IRUGO, msm_get_smt_download_time,  NULL);
+	__ATTR(smt_download_time, S_IRUGO,
+	msm_get_smt_download_time,  NULL);
 
 static struct device_attribute oem_attr_smt_download_version =
-	__ATTR(smt_download_version, S_IRUGO, msm_get_smt_download_version,  NULL);
+	__ATTR(smt_download_version, S_IRUGO,
+	msm_get_smt_download_version,  NULL);
 
 static struct device_attribute oem_attr_upgrade_download_time1 =
-	__ATTR(upgrade_download_time1, S_IRUGO, msm_get_upgrade_download_time1,  NULL);
+	__ATTR(upgrade_download_time1, S_IRUGO,
+	msm_get_upgrade_download_time1,  NULL);
 
 static struct device_attribute oem_attr_upgrade_download_version1 =
-	__ATTR(upgrade_download_version1, S_IRUGO, msm_get_upgrade_download_version1, NULL);
+	__ATTR(upgrade_download_version1, S_IRUGO,
+	msm_get_upgrade_download_version1, NULL);
 
 static struct device_attribute oem_attr_upgrade_download_time2 =
-	__ATTR(upgrade_download_time2, S_IRUGO, msm_get_upgrade_download_time2,  NULL);
+	__ATTR(upgrade_download_time2, S_IRUGO,
+	msm_get_upgrade_download_time2,  NULL);
 
 static struct device_attribute oem_attr_upgrade_download_version2 =
-	__ATTR(upgrade_download_version2, S_IRUGO, msm_get_upgrade_download_version2, NULL);
+	__ATTR(upgrade_download_version2, S_IRUGO,
+	msm_get_upgrade_download_version2, NULL);
 
 static struct device_attribute oem_attr_upgrade_download_time3 =
-	__ATTR(upgrade_download_time3, S_IRUGO, msm_get_upgrade_download_time3,  NULL);
+	__ATTR(upgrade_download_time3, S_IRUGO,
+	msm_get_upgrade_download_time3,  NULL);
 
 static struct device_attribute oem_attr_upgrade_download_version3 =
-	__ATTR(upgrade_download_version3, S_IRUGO, msm_get_upgrade_download_version3, NULL);
+	__ATTR(upgrade_download_version3, S_IRUGO,
+	msm_get_upgrade_download_version3, NULL);
+static struct device_attribute oem_attr_intranet =
+	__ATTR(intranet, S_IRUGO, msm_get_intranet, NULL);
 
 
-static void __init populate_oem_sysfs_files(struct device *oem_download_info_device)
+static void __init populate_oem_sysfs_files
+(struct device *oem_download_info_device)
 {
-	device_create_file(oem_download_info_device, &oem_attr_smt_download_time);
-	device_create_file(oem_download_info_device, &oem_attr_smt_download_version);
-	device_create_file(oem_download_info_device, &oem_attr_upgrade_download_time1);
-	device_create_file(oem_download_info_device, &oem_attr_upgrade_download_version1);
-	device_create_file(oem_download_info_device, &oem_attr_upgrade_download_time2);
-	device_create_file(oem_download_info_device, &oem_attr_upgrade_download_version2);
-	device_create_file(oem_download_info_device, &oem_attr_upgrade_download_time3);
-	device_create_file(oem_download_info_device, &oem_attr_upgrade_download_version3);
+	device_create_file(oem_download_info_device,
+	&oem_attr_smt_download_time);
+	device_create_file(oem_download_info_device,
+	&oem_attr_smt_download_version);
+	device_create_file(oem_download_info_device,
+	&oem_attr_upgrade_download_time1);
+	device_create_file(oem_download_info_device,
+	&oem_attr_upgrade_download_version1);
+	device_create_file(oem_download_info_device,
+	&oem_attr_upgrade_download_time2);
+	device_create_file(oem_download_info_device,
+	&oem_attr_upgrade_download_version2);
+	device_create_file(oem_download_info_device,
+	&oem_attr_upgrade_download_time3);
+	device_create_file(oem_download_info_device,
+	&oem_attr_upgrade_download_version3);
+	device_create_file(oem_download_info_device,
+	&oem_attr_intranet);
 
-	return;
 }
 
 
@@ -143,12 +171,11 @@ static int __init download_info_init_sysfs(void)
 {
 	struct device *oem_download_info_device;
 	int ret;
-	
+
 	oem_download_info_device = kzalloc(sizeof(struct device), GFP_KERNEL);
-	if (!oem_download_info_device) {
-		pr_err("Download info Device alloc failed!\n");
+	if (!oem_download_info_device)
 		return -ENOMEM;
-	}
+
 
 	oem_download_info_device->release = download_info_release;
 
@@ -178,12 +205,14 @@ int __init download_info_init(void)
 		return 0;
 
 	ret = get_param_download_info(&download_info);
-	if (ret < 0) {
-		pr_err("Can't get download_info.\n");
-		return -1;
-	}
-	else
+	if (ret >= 0) {
 		download_info_init_done = true;
+	} else {
+		pr_err("Can't get download_info.\n");
+		return ret;
+	}
+
+
 
 	return 0;
 }

@@ -17,7 +17,7 @@
 #include <linux/syscore_ops.h>
 #include <linux/uaccess.h>
 #include <linux/delay.h>
-extern int oem_get_download_mode(void);
+
 /*
  * this indicates whether you can reboot with ctrl-alt-del: the default is yes
  */
@@ -51,6 +51,7 @@ int reboot_force;
  */
 
 void (*pm_power_off_prepare)(void);
+extern int oem_get_download_mode(void);
 
 /**
  *	emergency_restart - reboot the system

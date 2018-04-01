@@ -39,9 +39,12 @@
 
 #include <asm/fb.h>
 
-#define LCDSPEEDUP_LITTLE_CPU_QOS_FREQ 1900800
+#if defined(CONFIG_ARCH_MSM8998)
 #define LCDSPEEDUP_BIG_CPU_QOS_FREQ    2361600
-#define LCD_QOS_TIMEOUT	250000
+#elif defined(CONFIG_ARCH_MSM8996)
+#define LCDSPEEDUP_BIG_CPU_QOS_FREQ    2073600
+#endif
+#define LCD_QOS_TIMEOUT	1000000
 #define NO_BOOST	0
 
 static struct pm_qos_request lcdspeedup_little_cpu_qos;

@@ -968,3 +968,36 @@
 	};
 };
 /*  wangdongdong@MultiMediaService,2017/02/23,end  */
+
+/*pcie 0 don't used,gpio 37 will used in nfc.*/
+/*but gpio37 will request in pcie0. so disable it*/
+&pcie0 {
+	status = "disabled";
+};
+
+&i2c_6 { /* BLSP1 QUP6 (NFC) */
+	nq@28 {
+		status = "disabled";
+	};
+
+	pn5xx@28 {
+		compatible = "nxp,pn544";
+		reg = <0x28>;
+		nxp,pn544-irq = <&tlmm 92 0x00>;
+		nxp,pn544-ven = <&tlmm 12 0x00>;
+		nxp,pn544-fw-dwnld = <&tlmm 93 0x00>;
+		nxp,pn544-clk-gpio = <&pm8998_gpios 21 0x00>;
+		nxp,pn544-ese-pwr = <&tlmm 37 0x00>;
+		nfc_voltage_s4-supply = <&pm8998_s4>;
+		nxp,pn544-wake-up = <&tlmm 116 0x00>;
+		interrupt-parent = <&tlmm>;
+		qcom,clk-src = "BBCLK3";
+		interrupts = <92 0>;
+		interrupt-names = "nfc_irq";
+		pinctrl-names = "nfc_active", "nfc_suspend";
+		pinctrl-0 = <&nfc_int_active &nfc_enable_active>;
+		pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend>;
+		clocks = <&clock_gcc clk_ln_bb_clk3_pin>;
+		clock-names = "ref_clk";
+	};
+};
