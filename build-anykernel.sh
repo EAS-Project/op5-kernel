@@ -41,7 +41,7 @@ KERNEL_DIR=`pwd`
 KBUILD_OUTPUT="${KERNEL_DIR}/../out"
 REPACK_DIR="${HOME}/android/source/kernel/AnyKernel2"
 PATCH_DIR="${HOME}/android/source/kernel/AnyKernel2/patch"
-MODULES_DIR="${HOME}/android/source/kernel/AnyKernel2/modules"
+MODULES_DIR="${HOME}/android/source/kernel/AnyKernel2/ramdisk/modules"
 ZIP_MOVE="${HOME}/android/source/zips/OP5-zips"
 ZIMAGE_DIR="$KBUILD_OUTPUT/arch/arm64/boot"
 
