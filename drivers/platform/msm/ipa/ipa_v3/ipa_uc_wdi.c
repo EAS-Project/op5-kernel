@@ -1210,7 +1210,6 @@ int ipa3_connect_wdi_pipe(struct ipa_wdi_in_params *in,
 		IPADBG("Skipping endpoint configuration.\n");
 	}
 
-
 	out->clnt_hdl = ipa_ep_idx;
 
 	if (!ep->skip_ep_cfg && IPA_CLIENT_IS_PROD(in->sys.client))
@@ -1359,7 +1358,7 @@ int ipa3_enable_wdi_pipe(u32 clnt_hdl)
 	}
 
 	IPADBG("Setting group %d for pipe %d\n",
-			rsrc_grp.rsrc_grp, clnt_hdl);
+		rsrc_grp.rsrc_grp, clnt_hdl);
 	ipahal_write_reg_n_fields(IPA_ENDP_INIT_RSRC_GRP_n, clnt_hdl,
 		&rsrc_grp);
 

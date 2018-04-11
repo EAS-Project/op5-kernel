@@ -592,31 +592,31 @@ static int audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	pr_debug("audio_set_alt intf %d, alt %d\n", intf, alt);
 
 	if (!alt) {
-	usb_ep_disable(audio->in_ep);
-	return 0;
+		usb_ep_disable(audio->in_ep);
+		return 0;
 	}
 
 	ret = config_ep_by_speed(cdev->gadget, f, audio->in_ep);
-	if (ret){
+	if (ret) {
 		audio->in_ep->desc = NULL;
 		pr_err("config_ep fail for audio ep ret %d\n", ret);
 		return ret;
 	}
-
 	ret = usb_ep_enable(audio->in_ep);
 	if (ret) {
 		audio->in_ep->desc = NULL;
 		pr_err("failed to enable audio ret %d\n", ret);
 		return ret;
 	}
+
 	return 0;
 }
 
 /*
-* Because the data interface supports multiple altsettings,
-* this audio_source function *MUST* implement a get_alt() method.
-*/
-static int audio_get_alt(struct usb_function *f, unsigned intf)
+ * Because the data interface supports multiple altsettings,
+ * this audio_source function *MUST* implement a get_alt() method.
+ */
+static int audio_get_alt(struct usb_function *f, unsigned int intf)
 {
 	struct audio_dev	*audio = func_to_audio(f);
 
