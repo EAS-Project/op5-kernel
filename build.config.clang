@@ -23,7 +23,7 @@ CLANG_TRIPLE="aarch64-linux-gnu-"
 # Paths
 KBUILD_OUTPUT="../out_$DEVICE"
 AK2_DIR="$HOME/kernel/AnyKernel2_$DEVICE"
-MODULES_DIR="$AK2_DIR/ramdisk/modules"
+MODULES_DIR="$AK2_DIR/ramdisk/renderzenith/modules"
 ZIP_MOVE="$HOME/www/kernels/$DEVICE"
 ZIMAGE_DIR="$KBUILD_OUTPUT/arch/$ARCH/boot"
 
