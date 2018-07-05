@@ -5,11 +5,6 @@
 #  Based off AK'sbuild script - Thanks!
 #
 
-VENDOR_MODULES=(
-  "msm_11ad_proxy.ko"
-  "wil6210.ko"
-)
-
 # Bash Color
 rm .version
 green='\033[01;32m'
@@ -77,30 +72,17 @@ function make_kernel {
 function make_modules {
 	# Remove and re-create modules directory
 	rm -rf $MODULES_DIR
-	mkdir -p $MODULES_DIR/system/lib/modules
-	mkdir -p $MODULES_DIR/system/vendor/lib/modules
+	mkdir -p $MODULES_DIR
 
 	# Copy modules over
 	echo ""
-        find $KBUILD_OUTPUT -name '*.ko' -exec cp -v {} $MODULES_DIR/system/lib/modules \;
+        find $KBUILD_OUTPUT -name '*.ko' -exec cp -v {} $MODULES_DIR \;
 
 	# Strip modules
-	${CROSS_COMPILE}strip --strip-unneeded $MODULES_DIR/system/lib/modules/*.ko
+	${CROSS_COMPILE}strip --strip-unneeded $MODULES_DIR/*.ko
 
 	# Sign modules
-	find $MODULES_DIR/system/lib/modules -name '*.ko' -exec $KBUILD_OUTPUT/scripts/sign-file sha512 $KBUILD_OUTPUT/certs/signing_key.pem $KBUILD_OUTPUT/certs/signing_key.x509 {} \;
-
-	# Move vendor modules to vendor directory
-	if [ ${#VENDOR_MODULES[@]} -ne 0 ]; then
-	  echo ""
-	  for mod in ${VENDOR_MODULES[@]}; do
-	    if [ -f $MODULES_DIR/system/lib/modules/$mod ]; then
-	      mv $MODULES_DIR/system/lib/modules/$mod $MODULES_DIR/system/vendor/lib/modules
-	      echo "Moved $mod to /system/vendor/lib/modules."
-	    fi
-	  done
-	  echo ""
-	fi
+	find $MODULES_DIR -name '*.ko' -exec $KBUILD_OUTPUT/scripts/sign-file sha512 $KBUILD_OUTPUT/certs/signing_key.pem $KBUILD_OUTPUT/certs/signing_key.x509 {} \;
 }
 
 function make_zip {
