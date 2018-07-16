@@ -846,6 +846,18 @@ static void ufshcd_print_host_state(struct ufs_hba *hba)
 		return;
 
 	dev_err(hba->dev, "UFS Host state=%d\n", hba->ufshcd_state);
+	if (hba->sdev_ufs_device) {
+		dev_err(hba->dev, " vendor = %.8s\n",
+					hba->sdev_ufs_device->vendor);
+		dev_err(hba->dev, " model = %.16s\n",
+					hba->sdev_ufs_device->model);
+		dev_err(hba->dev, " rev = %.4s\n",
+					hba->sdev_ufs_device->rev);
+		dev_err(hba->dev, " nutrs = %d\n",
+					hba->nutrs);
+		dev_err(hba->dev, " queue_depth = %u\n",
+					hba->sdev_ufs_device->queue_depth);
+	}
 	dev_err(hba->dev, "lrb in use=0x%lx, outstanding reqs=0x%lx tasks=0x%lx\n",
 		hba->lrb_in_use, hba->outstanding_tasks, hba->outstanding_reqs);
 	dev_err(hba->dev, "saved_err=0x%x, saved_uic_err=0x%x, saved_ce_err=0x%x\n",
@@ -2395,6 +2407,9 @@ static inline void ufshcd_hba_capabilities(struct ufs_hba *hba)
 	hba->nutrs = (hba->capabilities & MASK_TRANSFER_REQUESTS_SLOTS) + 1;
 	hba->nutmrs =
 	((hba->capabilities & MASK_TASK_MANAGEMENT_REQUEST_SLOTS) >> 16) + 1;
+
+	/* disable auto hibern8 */
+	hba->capabilities &= ~MASK_AUTO_HIBERN8_SUPPORT;
 }
 
 /**
@@ -5120,6 +5135,7 @@ static void ufshcd_set_queue_depth(struct scsi_device *sdev)
 	dev_dbg(hba->dev, "%s: activate tcq with queue depth %d\n",
 			__func__, lun_qdepth);
 	scsi_change_queue_depth(sdev, lun_qdepth);
+	ufs_fix_qdepth_device(hba, sdev);
 }
 
 /*
@@ -5199,7 +5215,7 @@ static int ufshcd_slave_alloc(struct scsi_device *sdev)
 	/* REPORT SUPPORTED OPERATION CODES is not supported */
 	sdev->no_report_opcodes = 1;
 
-	/* WRITE_SAME command is not supported*/
+	/* WRITE_SAME command is not supported */
 	sdev->no_write_same = 1;
 
 	ufshcd_set_queue_depth(sdev);
@@ -5222,7 +5238,9 @@ static int ufshcd_change_queue_depth(struct scsi_device *sdev, int depth)
 
 	if (depth > hba->nutrs)
 		depth = hba->nutrs;
-	return scsi_change_queue_depth(sdev, depth);
+
+	scsi_change_queue_depth(sdev, depth);
+	return ufs_fix_qdepth_device(hba, sdev);
 }
 
 /**
@@ -9471,8 +9489,8 @@ static int ufshcd_scale_gear(struct ufs_hba *hba, bool scale_up)
 				new_pwr_info.pwr_rx = FASTAUTO_MODE;
 			}
 		}
-		ret = ufshcd_change_power_mode(hba, &new_pwr_info);
 	}
+	ret = ufshcd_change_power_mode(hba, &new_pwr_info);
 
 out:
 	if (ret)

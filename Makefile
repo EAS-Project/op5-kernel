@@ -1,6 +1,6 @@
 VERSION = 4
 PATCHLEVEL = 4
-SUBLEVEL = 131
+SUBLEVEL = 138
 EXTRAVERSION =
 NAME = Blurry Fish Butt
 
@@ -667,9 +667,6 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, duplicate-decl-specifier)
 
 # Custom cflags
 KBUILD_CFLAGS	+= $(call cc-disable-warning, self-assign)
-
-# Needed to unbreak GCC 7.x and above
-KBUILD_CFLAGS   += $(call cc-option,-fno-store-merging,)
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= $(call cc-option,-Oz,-Os)

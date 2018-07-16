@@ -2815,6 +2815,16 @@ int adreno_dispatcher_init(struct adreno_device *adreno_dev)
 	return ret;
 }
 
+void adreno_dispatcher_halt(struct kgsl_device *device)
+{
+	adreno_get_gpu_halt(ADRENO_DEVICE(device));
+}
+
+void adreno_dispatcher_unhalt(struct kgsl_device *device)
+{
+	adreno_put_gpu_halt(ADRENO_DEVICE(device));
+}
+
 /*
  * adreno_dispatcher_idle() - Wait for dispatcher to idle
  * @adreno_dev: Adreno device whose dispatcher needs to idle
@@ -2844,6 +2854,13 @@ int adreno_dispatcher_idle(struct adreno_device *adreno_dev)
 	adreno_get_gpu_halt(adreno_dev);
 
 	mutex_unlock(&device->mutex);
+
+	/*
+	 * Flush the worker to make sure all executing
+	 * or pending dispatcher works on worker are
+	 * finished
+	 */
+	flush_kthread_worker(&kgsl_driver.worker);
 
 	ret = wait_for_completion_timeout(&dispatcher->idle_gate,
 			msecs_to_jiffies(ADRENO_IDLE_TIMEOUT));

@@ -749,8 +749,10 @@
 &snd_9335 {
 	qcom,mbhc-audio-jack-type = "4-pole-jack";
 };
-/* liuhaituo@MultiMediaAudio modified for adapation phone headset 2018/3/2 */
 /*
+ * liuhaituo@MultiMediaAudio modified for adapation phone
+ * headset and AKG headset-mic 2018/4/26
+ */
 &slim_aud {
 	tasha_codec {
 		qcom,cdc-micbias1-mv = <1800>;
@@ -759,7 +761,6 @@
 		qcom,cdc-micbias4-mv = <1800>;
 	};
 };
-*/
 
 /* Audio */
 &soc {
@@ -880,7 +881,12 @@
 		fstab {
 			compatible = "android,fstab";
 			vendor {
-				status = "disabled";
+				compatible = "android,vendor";
+				dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/vendor";
+				type = "ext4";
+				mnt_flags = "ro,barrier=1,discard";
+				fsmgr_flags = "wait";
+				status = "ok";
 			};
 
 			system {
@@ -1016,9 +1022,7 @@
 };
 
 &uartblsp2dm1 {
-	pinctrl-names = "uart_active", "uart_deactive";
-	pinctrl-0 = <&uart_console_active>;
-	pinctrl-1 = <&uart_console_deactive>;
+	status = "disabled";
 };
 /*Anderson-Config_UARTPIN_as_GPIO*]**/
 

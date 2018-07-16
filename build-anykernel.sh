@@ -5,11 +5,6 @@
 #  Based off AK'sbuild script - Thanks!
 #
 
-VENDOR_MODULES=(
-  "msm_11ad_proxy.ko"
-  "wil6210.ko"
-)
-
 # Bash Color
 rm .version
 green='\033[01;32m'
@@ -28,12 +23,17 @@ DEFCONFIG="oneplus5_defconfig"
 VER=RenderZenith
 VARIANT="OP5-OOS-O-EAS"
 
+# Kernel zip name
+HASH=`git rev-parse --short=8 HEAD`
+KERNEL_ZIP="RZ-$VARIANT-$(date +%y%m%d)-$HASH" 
+
 # Vars
 export LOCALVERSION=~`echo $VER`
 export ARCH=arm64
 export SUBARCH=arm64
 export KBUILD_BUILD_USER=RenderZenith
-export KBUILD_BUILD_HOST=RenderServer.net
+export KBUILD_BUILD_HOST=renderserver.net
+export LOCALVERSION=~`echo $KERNEL_ZIP`
 export CCACHE=ccache
 
 # Paths
@@ -41,15 +41,12 @@ KERNEL_DIR=`pwd`
 KBUILD_OUTPUT="${KERNEL_DIR}/../out"
 REPACK_DIR="${HOME}/android/source/kernel/AnyKernel2"
 PATCH_DIR="${HOME}/android/source/kernel/AnyKernel2/patch"
-MODULES_DIR="${HOME}/android/source/kernel/AnyKernel2/ramdisk/modules"
+MODULES_DIR="${HOME}/android/source/kernel/AnyKernel2/ramdisk/renderzenith/modules"
 ZIP_MOVE="${HOME}/android/source/zips/OP5-zips"
 ZIMAGE_DIR="$KBUILD_OUTPUT/arch/arm64/boot"
 
-# Create output directory
-mkdir -p ${KBUILD_OUTPUT}
-
 # Functions
-function checkout_ak_branches {
+function checkout_ak2_branches {
         cd $REPACK_DIR
         git checkout rk-op5-oos-o
         cd $KERNEL_DIR
@@ -75,37 +72,24 @@ function make_kernel {
 function make_modules {
 	# Remove and re-create modules directory
 	rm -rf $MODULES_DIR
-	mkdir -p $MODULES_DIR/system/lib/modules
-	mkdir -p $MODULES_DIR/system/vendor/lib/modules
+	mkdir -p $MODULES_DIR
 
 	# Copy modules over
 	echo ""
-        find $KBUILD_OUTPUT -name '*.ko' -exec cp -v {} $MODULES_DIR/system/lib/modules \;
+        find $KBUILD_OUTPUT -name '*.ko' -exec cp -v {} $MODULES_DIR \;
 
 	# Strip modules
-	${CROSS_COMPILE}strip --strip-unneeded $MODULES_DIR/system/lib/modules/*.ko
+	${CROSS_COMPILE}strip --strip-unneeded $MODULES_DIR/*.ko
 
 	# Sign modules
-	find $MODULES_DIR/system/lib/modules -name '*.ko' -exec $KBUILD_OUTPUT/scripts/sign-file sha512 $KBUILD_OUTPUT/certs/signing_key.pem $KBUILD_OUTPUT/certs/signing_key.x509 {} \;
-
-	# Move vendor modules to vendor directory
-	if [ ${#VENDOR_MODULES[@]} -ne 0 ]; then
-	  echo ""
-	  for mod in ${VENDOR_MODULES[@]}; do
-	    if [ -f $MODULES_DIR/system/lib/modules/$mod ]; then
-	      mv $MODULES_DIR/system/lib/modules/$mod $MODULES_DIR/system/vendor/lib/modules
-	      echo "Moved $mod to /system/vendor/lib/modules."
-	    fi
-	  done
-	  echo ""
-	fi
+	find $MODULES_DIR -name '*.ko' -exec $KBUILD_OUTPUT/scripts/sign-file sha512 $KBUILD_OUTPUT/certs/signing_key.pem $KBUILD_OUTPUT/certs/signing_key.x509 {} \;
 }
 
 function make_zip {
         cp -vr $ZIMAGE_DIR/$KERNEL $REPACK_DIR/zImage
         cd $REPACK_DIR
-        zip -r9 RZ-"$VARIANT"-V.zip *
-        mv RZ-"$VARIANT"-V.zip $ZIP_MOVE
+        zip -r9 $KERNEL_ZIP.zip * 
+        mv $KERNEL_ZIP.zip $ZIP_MOVE
         cd $KERNEL_DIR
 }
 
@@ -116,20 +100,14 @@ echo "RenderZenith creation script:"
 echo -e "${restore}"
 
 echo "Pick Toolchain..."
-select choice in gcc-aosp-4.9 gcc-linaro-4.9.4 gcc-linaro-6.4.1-2017.11-x86_64_aarch64-linux-gnu gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu
+select choice in gcc-linaro-6.4.1-2018.05-x86_64_aarch64-linux-gnu gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu
 do
 case "$choice" in
-    "gcc-aosp-4.9")
-        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-aosp-4.9/bin/aarch64-linux-android-
+    "gcc-linaro-6.4.1-2018.05-x86_64_aarch64-linux-gnu")
+        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-6.4.1-2018.05-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
         break;;
-    "gcc-linaro-4.9.4")
-        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-4.9.4/bin/aarch64-linux-gnu-
-        break;;
-    "gcc-linaro-6.4.1-2017.11-x86_64_aarch64-linux-gnu")
-        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-6.4.1-2017.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
-        break;;
-    "gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu")
-        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-7.2.1-2017.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
+    "gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu")
+        export CROSS_COMPILE=${HOME}/android/source/toolchains/gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
         break;;
 
 esac
@@ -142,7 +120,7 @@ while read -p "Do you want to clean stuffs (y/n)? " cchoice
 do
 case "$cchoice" in
     y|Y )
-        checkout_ak_branches
+        checkout_ak2_branches
         clean_all
         echo
         echo "All Cleaned now."
