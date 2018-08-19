@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -366,6 +366,13 @@ static void htt_t2h_lp_msg_handler(void *context, qdf_nbuf_t htt_t2h_msg,
 	{
 		struct htt_mgmt_tx_compl_ind *compl_msg;
 		int32_t credit_delta = 1;
+		int msg_len = qdf_nbuf_len(htt_t2h_msg);
+		if (msg_len < (sizeof(struct htt_mgmt_tx_compl_ind) + sizeof(*msg_word))) {
+			QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_ERROR,
+				  "Invalid msg_word lenght in HTT_T2H_MSG_TYPE_MGMT_TX_COMPL_IND");
+			WARN_ON(1);
+			break;
+		}
 
 		compl_msg =
 			(struct htt_mgmt_tx_compl_ind *)(msg_word + 1);
@@ -399,11 +406,10 @@ static void htt_t2h_lp_msg_handler(void *context, qdf_nbuf_t htt_t2h_msg,
 	}
 	case HTT_T2H_MSG_TYPE_STATS_CONF:
 	{
-		uint64_t cookie;
+		uint8_t cookie;
 		uint8_t *stats_info_list;
 
 		cookie = *(msg_word + 1);
-		cookie |= ((uint64_t) (*(msg_word + 2))) << 32;
 
 		stats_info_list = (uint8_t *) (msg_word + 3);
 		htc_pm_runtime_put(pdev->htc_pdev);
@@ -414,7 +420,16 @@ static void htt_t2h_lp_msg_handler(void *context, qdf_nbuf_t htt_t2h_msg,
 #ifndef REMOVE_PKT_LOG
 	case HTT_T2H_MSG_TYPE_PKTLOG:
 	{
-		pktlog_process_fw_msg(msg_word + 1);
+		uint32_t len = qdf_nbuf_len(htt_t2h_msg);
+
+		if (len < sizeof(*msg_word) + sizeof(uint32_t)) {
+			qdf_print("%s: invalid nbuff len \n", __func__);
+			WARN_ON(1);
+			break;
+		}
+
+		/*len is reduced by sizeof(*msg_word)*/
+		pktlog_process_fw_msg(msg_word + 1, len - sizeof(*msg_word));
 		break;
 	}
 #endif
@@ -459,6 +474,7 @@ static void htt_t2h_lp_msg_handler(void *context, qdf_nbuf_t htt_t2h_msg,
 		uint16_t len;
 		uint8_t *op_msg_buffer;
 		uint8_t *msg_start_ptr;
+		int msg_len = qdf_nbuf_len(htt_t2h_msg);
 
 		htc_pm_runtime_put(pdev->htc_pdev);
 		msg_start_ptr = (uint8_t *) msg_word;
@@ -467,6 +483,11 @@ static void htt_t2h_lp_msg_handler(void *context, qdf_nbuf_t htt_t2h_msg,
 		msg_word++;
 		len = HTT_WDI_IPA_OP_RESPONSE_RSP_LEN_GET(*msg_word);
 
+		if (sizeof(struct htt_wdi_ipa_op_response_t) + len > msg_len) {
+			qdf_print("Invalid buffer length");
+			WARN_ON(1);
+			break;
+		}
 		op_msg_buffer =
 			qdf_mem_malloc(sizeof
 				       (struct htt_wdi_ipa_op_response_t) +
@@ -488,8 +509,16 @@ static void htt_t2h_lp_msg_handler(void *context, qdf_nbuf_t htt_t2h_msg,
 	{
 		uint8_t num_flows;
 		struct htt_flow_pool_map_payload_t *pool_map_payoad;
+		int msg_len = qdf_nbuf_len(htt_t2h_msg);
 
 		num_flows = HTT_FLOW_POOL_MAP_NUM_FLOWS_GET(*msg_word);
+
+		if (((HTT_FLOW_POOL_MAP_PAYLOAD_SZ /
+			HTT_FLOW_POOL_MAP_HEADER_SZ) * num_flows + 1) * sizeof(*msg_word) > msg_len) {
+			qdf_print("Invalid num_flows");
+			WARN_ON(1);
+			break;
+		}
 
 		msg_word++;
 		while (num_flows) {
@@ -510,6 +539,14 @@ static void htt_t2h_lp_msg_handler(void *context, qdf_nbuf_t htt_t2h_msg,
 	case HTT_T2H_MSG_TYPE_FLOW_POOL_UNMAP:
 	{
 		struct htt_flow_pool_unmap_t *pool_numap_payload;
+		int msg_len = qdf_nbuf_len(htt_t2h_msg);
+
+		if (msg_len < sizeof(struct htt_flow_pool_unmap_t)) {
+			QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_ERROR,
+				  "Invalid msg_word lenght in HTT_T2H_MSG_TYPE_FLOW_POOL_UNMAP");
+			WARN_ON(1);
+			break;
+		}
 
 		pool_numap_payload = (struct htt_flow_pool_unmap_t *)msg_word;
 		ol_tx_flow_pool_unmap_handler(pool_numap_payload->flow_id,
@@ -664,6 +701,7 @@ void htt_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 		unsigned int num_msdu_bytes;
 		uint16_t peer_id;
 		uint8_t tid;
+		int msg_len = qdf_nbuf_len(htt_t2h_msg);
 
 		if (qdf_unlikely(pdev->cfg.is_full_reorder_offload)) {
 			qdf_print("HTT_T2H_MSG_TYPE_RX_IND not supported ");
@@ -676,6 +714,10 @@ void htt_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 		if (tid >= OL_TXRX_NUM_EXT_TIDS) {
 			qdf_print("HTT_T2H_MSG_TYPE_RX_IND, invalid tid %d\n",
 				tid);
+			break;
+		}
+		if (msg_len < (2 + HTT_RX_PPDU_DESC_SIZE32 + 1) * sizeof(uint32_t)) {
+			qdf_print("HTT_T2H_MSG_TYPE_RX_IND, invalid msg_len\n");
 			break;
 		}
 		num_msdu_bytes =
@@ -693,6 +735,12 @@ void htt_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 		num_mpdu_ranges =
 			HTT_RX_IND_NUM_MPDU_RANGES_GET(*(msg_word + 1));
 		pdev->rx_ind_msdu_byte_idx = 0;
+		if (qdf_unlikely(pdev->rx_mpdu_range_offset_words + (num_mpdu_ranges * 4) > msg_len)) {
+			qdf_print("HTT_T2H_MSG_TYPE_RX_IND, invalid mpdu_ranges %d\n",
+				num_mpdu_ranges);
+			WARN_ON(1);
+			break;
+		}
 
 		ol_rx_indication_handler(pdev->txrx_pdev,
 					 htt_t2h_msg, peer_id,
@@ -939,12 +987,19 @@ void htt_t2h_msg_handler_fast(void *context, qdf_nbuf_t *cmpl_msdus,
 		{
 			unsigned int num_mpdu_ranges;
 			unsigned int num_msdu_bytes;
+			unsigned int calculated_msg_len;
 			u_int16_t peer_id;
 			u_int8_t tid;
+			msg_len = qdf_nbuf_len(htt_t2h_msg);
 
 			peer_id = HTT_RX_IND_PEER_ID_GET(*msg_word);
 			tid = HTT_RX_IND_EXT_TID_GET(*msg_word);
-
+			if (tid >= OL_TXRX_NUM_EXT_TIDS) {
+				qdf_print("HTT_T2H_MSG_TYPE_RX_IND, invalid tid %d\n",
+					tid);
+				WARN_ON(1);
+				break;
+			}
 			num_msdu_bytes =
 				HTT_RX_IND_FW_RX_DESC_BYTES_GET(
 				*(msg_word + 2 +
@@ -964,6 +1019,34 @@ void htt_t2h_msg_handler_fast(void *context, qdf_nbuf_t *cmpl_msdus,
 				HTT_RX_IND_NUM_MPDU_RANGES_GET(*(msg_word
 								 + 1));
 			pdev->rx_ind_msdu_byte_idx = 0;
+			if (qdf_unlikely(pdev->rx_mpdu_range_offset_words >
+					 msg_len)) {
+				qdf_print("HTT_T2H_MSG_TYPE_RX_IND, invalid rx_mpdu_range_offset_words %d\n",
+					  pdev->rx_mpdu_range_offset_words);
+				WARN_ON(1);
+				break;
+			}
+			calculated_msg_len = pdev->rx_mpdu_range_offset_words +
+					     (num_mpdu_ranges *
+					     (int)sizeof(uint32_t));
+			/*
+			 * Check that the addition and multiplication
+			 * do not cause integer overflow
+			 */
+			if (qdf_unlikely(calculated_msg_len <
+					 pdev->rx_mpdu_range_offset_words)) {
+				qdf_print("HTT_T2H_MSG_TYPE_RX_IND, invalid mpdu_ranges %u\n",
+					  (num_mpdu_ranges *
+					   (int)sizeof(uint32_t)));
+				WARN_ON(1);
+				break;
+			}
+			if (qdf_unlikely(calculated_msg_len > msg_len)) {
+				qdf_print("HTT_T2H_MSG_TYPE_RX_IND, invalid offset_words + mpdu_ranges %u\n",
+					  calculated_msg_len);
+				WARN_ON(1);
+				break;
+			}
 			ol_rx_indication_handler(pdev->txrx_pdev, htt_t2h_msg,
 						 peer_id, tid, num_mpdu_ranges);
 			break;

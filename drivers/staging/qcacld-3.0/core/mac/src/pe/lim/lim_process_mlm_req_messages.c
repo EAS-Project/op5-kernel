@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -58,10 +58,7 @@ static void lim_process_mlm_set_keys_req(tpAniSirGlobal, uint32_t *);
 
 /* MLM Timeout event handler templates */
 static void lim_process_periodic_probe_req_timer(tpAniSirGlobal mac_ctx);
-static void lim_process_join_failure_timeout(tpAniSirGlobal);
-static void lim_process_auth_failure_timeout(tpAniSirGlobal);
 static void lim_process_auth_rsp_timeout(tpAniSirGlobal, uint32_t);
-static void lim_process_assoc_failure_timeout(tpAniSirGlobal, uint32_t);
 static void lim_process_periodic_join_probe_req_timer(tpAniSirGlobal);
 static void lim_process_auth_retry_timer(tpAniSirGlobal);
 
@@ -516,6 +513,12 @@ lim_mlm_add_bss(tpAniSirGlobal mac_ctx,
 		mlm_start_req->cfParamSet.cfpDurRemaining;
 
 	addbss_param->rateSet.numRates = mlm_start_req->rateSet.numRates;
+	if (addbss_param->rateSet.numRates > SIR_MAC_RATESET_EID_MAX) {
+		pe_warn("num of sup rates %d exceeding the limit %d, resetting",
+			addbss_param->rateSet.numRates,
+			SIR_MAC_RATESET_EID_MAX);
+		addbss_param->rateSet.numRates = SIR_MAC_RATESET_EID_MAX;
+	}
 	qdf_mem_copy(addbss_param->rateSet.rate, mlm_start_req->rateSet.rate,
 		     mlm_start_req->rateSet.numRates);
 
@@ -540,9 +543,16 @@ lim_mlm_add_bss(tpAniSirGlobal mac_ctx,
 	addbss_param->sessionId = mlm_start_req->sessionId;
 
 	/* Send the SSID to HAL to enable SSID matching for IBSS */
-	qdf_mem_copy(&(addbss_param->ssId.ssId),
-		     mlm_start_req->ssId.ssId, mlm_start_req->ssId.length);
 	addbss_param->ssId.length = mlm_start_req->ssId.length;
+	if (addbss_param->ssId.length > SIR_MAC_MAX_SSID_LENGTH) {
+		pe_err("Invalid ssid length %d, max length allowed %d",
+		       addbss_param->ssId.length,
+		       SIR_MAC_MAX_SSID_LENGTH);
+		qdf_mem_free(addbss_param);
+		return eSIR_SME_INVALID_PARAMETERS;
+	}
+	qdf_mem_copy(addbss_param->ssId.ssId,
+		     mlm_start_req->ssId.ssId, addbss_param->ssId.length);
 	addbss_param->bHiddenSSIDEn = mlm_start_req->ssidHidden;
 	pe_debug("TRYING TO HIDE SSID %d", addbss_param->bHiddenSSIDEn);
 	/* CR309183. Disable Proxy Probe Rsp.  Host handles Probe Requests.  Until FW fixed. */
@@ -2124,17 +2134,7 @@ static void lim_process_periodic_probe_req_timer(tpAniSirGlobal mac_ctx)
 	}
 }
 
-/**
- * lim_process_join_failure_timeout() - This function is called to process
- * JoinFailureTimeout
- *
- * @mac_ctx:      Pointer to Global MAC structure
- *
- * This function is called to process JoinFailureTimeout
- *
- * @Return None
- */
-static void lim_process_join_failure_timeout(tpAniSirGlobal mac_ctx)
+void lim_process_join_failure_timeout(tpAniSirGlobal mac_ctx)
 {
 	tLimMlmJoinCnf mlm_join_cnf;
 	uint32_t len;
@@ -2299,17 +2299,7 @@ static void lim_process_auth_retry_timer(tpAniSirGlobal mac_ctx)
 	return;
 } /*** lim_process_auth_retry_timer() ***/
 
-/**
- * lim_process_auth_failure_timeout() - This function is called to process Min
- * Channel Timeout during channel scan.
- *
- * @mac_ctx:      Pointer to Global MAC structure
- *
- * This function is called to process Min Channel Timeout during channel scan.
- *
- * @Return: None
- */
-static void lim_process_auth_failure_timeout(tpAniSirGlobal mac_ctx)
+void lim_process_auth_failure_timeout(tpAniSirGlobal mac_ctx)
 {
 	/* fetch the sessionEntry based on the sessionId */
 	tpPESession session;
@@ -2424,18 +2414,8 @@ lim_process_auth_rsp_timeout(tpAniSirGlobal mac_ctx, uint32_t auth_idx)
 	}
 }
 
-/**
- * lim_process_assoc_failure_timeout() - This function is called to process Min
- * Channel Timeout during channel scan.
- *
- * @mac_ctx      Pointer to Global MAC structure
- *
- * This function is called to process Min Channel Timeout during channel scan.
- *
- * @Return: None
- */
-static void
-lim_process_assoc_failure_timeout(tpAniSirGlobal mac_ctx, uint32_t msg_type)
+void lim_process_assoc_failure_timeout(tpAniSirGlobal mac_ctx,
+						     uint32_t msg_type)
 {
 
 	tLimMlmAssocCnf mlm_assoc_cnf;

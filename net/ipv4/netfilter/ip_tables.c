@@ -413,8 +413,6 @@ ipt_do_table(struct sk_buff *skb,
 					break;
 				}
 				jumpstack[stackidx++] = e;
-				pr_debug("Pushed %p into pos %u\n",
-					 e, stackidx - 1);
 			}
 
 			e = get_entry(table_base, v);
@@ -663,6 +661,7 @@ find_check_entry(struct ipt_entry *e, struct net *net, const char *name,
 		return -ENOMEM;
 
 	j = 0;
+	memset(&mtpar, 0, sizeof(mtpar));
 	mtpar.net	= net;
 	mtpar.table     = name;
 	mtpar.entryinfo = &e->ip;

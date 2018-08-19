@@ -661,13 +661,8 @@ void hdd_conf_hostoffload(hdd_adapter_t *pAdapter, bool fenable)
 	}
 
 	/* Configure DTIM hardware filter rules */
-	{
-		enum hw_filter_mode mode = pHddCtx->config->hw_filter_mode;
-
-		if (!fenable)
-			mode = HW_FILTER_DISABLED;
-		hdd_conf_hw_filter_mode(pAdapter, mode);
-	}
+	hdd_conf_hw_filter_mode(pAdapter, pHddCtx->config->hw_filter_mode,
+				fenable);
 
 	EXIT();
 }
@@ -1057,7 +1052,8 @@ QDF_STATUS hdd_conf_arp_offload(hdd_adapter_t *pAdapter, bool fenable)
 	return QDF_STATUS_SUCCESS;
 }
 
-int hdd_conf_hw_filter_mode(hdd_adapter_t *adapter, enum hw_filter_mode mode)
+int hdd_conf_hw_filter_mode(hdd_adapter_t *adapter, enum hw_filter_mode mode,
+			    bool filter_enable)
 {
 	QDF_STATUS status;
 
@@ -1067,7 +1063,8 @@ int hdd_conf_hw_filter_mode(hdd_adapter_t *adapter, enum hw_filter_mode mode)
 	}
 
 	status = sme_conf_hw_filter_mode(WLAN_HDD_GET_HAL_CTX(adapter),
-					 adapter->sessionId, mode);
+					 adapter->sessionId, mode,
+					 filter_enable);
 
 	return qdf_status_to_os_return(status);
 }
@@ -1456,6 +1453,20 @@ QDF_STATUS hdd_wlan_shutdown(void)
 	hdd_debug("Invoking packetdump deregistration API");
 	wlan_deregister_txrx_packetdump();
 
+	/*
+	 * After SSR, FW clear its txrx stats. In host,
+	 * as adapter is intact so those counts are still
+	 * available. Now if agains Set stats command comes,
+	 * then host will increment its counts start from its
+	 * last saved value, i.e., count before SSR, and FW will
+	 * increment its count from 0. This will finally sends a
+	 * mismatch of packet counts b/w host and FW to framework
+	 * that will create ambiquity. Therfore, Resetting the host
+	 * counts here so that after SSR both FW and host start
+	 * increment their counts from 0.
+	 */
+	hdd_reset_all_adapters_connectivity_stats(pHddCtx);
+
 	hdd_reset_all_adapters(pHddCtx);
 
 	/* Flush cached rx frame queue */
@@ -1539,7 +1550,8 @@ static void hdd_send_default_scan_ies(hdd_context_t *hdd_ctx)
 		adapter = adapter_node->pAdapter;
 		if (hdd_is_interface_up(adapter) &&
 		    (adapter->device_mode == QDF_STA_MODE ||
-		    adapter->device_mode == QDF_P2P_DEVICE_MODE)) {
+		    adapter->device_mode == QDF_P2P_DEVICE_MODE) &&
+		    adapter->scan_info.default_scan_ies) {
 			sme_set_default_scan_ie(hdd_ctx->hHal,
 				      adapter->sessionId,
 				      adapter->scan_info.default_scan_ies,
