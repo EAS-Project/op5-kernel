@@ -1,0 +1,34 @@
+KERNEL="Image.gz-dtb"
+DEVICE="op5"
+
+# Enable ccache
+CCACHE=ccache
+
+# Kernel zip name
+HASH=`git rev-parse --short=8 HEAD`
+KERNEL_ZIP="RZ-$DEVICE-$(date +%y%m%d)-$HASH"
+
+# Vars
+export ARCH=arm64
+export DEFCONFIG="oneplus5_defconfig"
+export KBUILD_BUILD_USER=joshuous
+export KBUILD_BUILD_HOST=RenderZenith
+export CROSS_COMPILE=$HOME/kernel/toolchains/gcc-linaro-7.3.1/bin/aarch64-linux-gnu-
+export LOCALVERSION=~`echo $KERNEL_ZIP`
+
+# Clang
+CC="$HOME/kernel/toolchains/clang-7.x/bin/clang" # Path to clang executable
+CLANG_TRIPLE="aarch64-linux-gnu-"
+
+# Paths
+KBUILD_OUTPUT="../out_$DEVICE"
+AK2_DIR="$HOME/kernel/AnyKernel2_$DEVICE"
+MODULES_DIR="$AK2_DIR/ramdisk/renderzenith/modules"
+ZIP_MOVE="$HOME/www/kernels/$DEVICE"
+ZIMAGE_DIR="$KBUILD_OUTPUT/arch/$ARCH/boot"
+
+# Modules in vendor/lib/modules
+VENDOR_MODULES=(
+  "msm_11ad_proxy.ko"
+  "wil6210.ko"
+)
