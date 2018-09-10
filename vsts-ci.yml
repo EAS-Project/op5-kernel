@@ -1,0 +1,19 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+pool:
+  vmImage: 'Ubuntu 16.04'
+
+steps:
+- script: grep -c ^processor /proc/cpuinfo
+  displayName: 'Report number of CPUs'
+
+- script: ci/setup.sh
+  displayName: 'Setting up environment'
+
+- script: ci/build.sh
+  displayName: 'Build kernel'
+
+# Deploy
