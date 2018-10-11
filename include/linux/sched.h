@@ -647,6 +647,34 @@ struct task_cputime_atomic {
  */
 #define INIT_PREEMPT_COUNT	PREEMPT_OFFSET
 
+/**
+ * struct util_est - Estimation utilization of FAIR tasks
+ * @enqueued: instantaneous estimated utilization of a task/cpu
+ * @ewma:     the Exponential Weighted Moving Average (EWMA)
+ *            utilization of a task
+ *
+ * Support data structure to track an Exponential Weighted Moving Average
+ * (EWMA) of a FAIR task's utilization. New samples are added to the moving
+ * average each time a task completes an activation. Sample's weight is chosen
+ * so that the EWMA will be relatively insensitive to transient changes to the
+ * task's workload.
+ *
+ * The enqueued attribute has a slightly different meaning for tasks and cpus:
+ * - task:   the task's util_avg at last task dequeue time
+ * - cfs_rq: the sum of util_est.enqueued for each RUNNABLE task on that CPU
+ * Thus, the util_est.enqueued of a task represents the contribution on the
+ * estimated utilization of the CPU where that task is currently enqueued.
+ *
+ * Only for tasks we track a moving average of the past instantaneous
+ * estimated utilization. This allows to absorb sporadic drops in utilization
+ * of an otherwise almost periodic task.
+ */
+struct util_est {
+	unsigned int			enqueued;
+	unsigned int			ewma;
+#define UTIL_EST_WEIGHT_SHIFT		2
+};
+
 /*
  * Initial preempt_count value; reflects the preempt_count schedule invariant
  * which states that during context switches:
@@ -1315,6 +1343,7 @@ struct sched_avg {
 	u64 last_update_time, load_sum;
 	u32 util_sum, period_contrib;
 	unsigned long load_avg, util_avg;
+	struct util_est	util_est;
 };
 
 #ifdef CONFIG_SCHEDSTATS
@@ -1556,13 +1585,6 @@ struct tlbflush_unmap_batch {
 };
 
 struct task_struct {
-#ifdef CONFIG_THREAD_INFO_IN_TASK
-	/*
-	 * For reasons of header soup (see current_thread_info()), this
-	 * must be the first element of task_struct.
-	 */
-	struct thread_info thread_info;
-#endif
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	void *stack;
 	atomic_t usage;
@@ -1578,9 +1600,6 @@ struct task_struct {
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
 	int on_cpu;
-#ifdef CONFIG_THREAD_INFO_IN_TASK
-	unsigned int cpu;	/* current CPU */
-#endif
 	unsigned int wakee_flips;
 	unsigned long wakee_flip_decay_ts;
 	struct task_struct *last_wakee;
@@ -1646,7 +1665,7 @@ struct task_struct {
 
 	struct mm_struct *mm, *active_mm;
 	/* per-thread vma caching */
-	u32 vmacache_seqnum;
+	u64 vmacache_seqnum;
 	struct vm_area_struct *vmacache[VMACACHE_SIZE];
 #if defined(SPLIT_RSS_COUNTING)
 	struct task_rss_stat	rss_stat;
@@ -2641,9 +2660,7 @@ extern void set_curr_task(int cpu, struct task_struct *p);
 void yield(void);
 
 union thread_union {
-#ifndef CONFIG_THREAD_INFO_IN_TASK
 	struct thread_info thread_info;
-#endif
 	unsigned long stack[THREAD_SIZE/sizeof(long)];
 };
 
@@ -3038,26 +3055,10 @@ static inline void threadgroup_change_end(struct task_struct *tsk)
 	cgroup_threadgroup_change_end(tsk);
 }
 
-#ifdef CONFIG_THREAD_INFO_IN_TASK
-
-static inline struct thread_info *task_thread_info(struct task_struct *task)
-{
-	return &task->thread_info;
-}
-static inline void *task_stack_page(const struct task_struct *task)
-{
-	return task->stack;
-}
-#define setup_thread_stack(new,old)	do { } while(0)
-static inline unsigned long *end_of_stack(const struct task_struct *task)
-{
-	return task->stack;
-}
-
-#elif !defined(__HAVE_THREAD_FUNCTIONS)
+#ifndef __HAVE_THREAD_FUNCTIONS
 
 #define task_thread_info(task)	((struct thread_info *)(task)->stack)
-#define task_stack_page(task)	((void *)(task)->stack)
+#define task_stack_page(task)	((task)->stack)
 
 static inline void setup_thread_stack(struct task_struct *p, struct task_struct *org)
 {
@@ -3358,11 +3359,7 @@ static inline void ptrace_signal_wake_up(struct task_struct *t, bool resume)
 
 static inline unsigned int task_cpu(const struct task_struct *p)
 {
-#ifdef CONFIG_THREAD_INFO_IN_TASK
-	return p->cpu;
-#else
 	return task_thread_info(p)->cpu;
-#endif
 }
 
 static inline int task_node(const struct task_struct *p)
