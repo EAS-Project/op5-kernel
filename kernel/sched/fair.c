@@ -5324,6 +5324,20 @@ unsigned long capacity_curr_of(int cpu)
 	       >> SCHED_CAPACITY_SHIFT;
 }
 
+/*
+ * Returns the current capacity of cpu after applying both
+ * cpu and min freq scaling.
+ */
+unsigned long capacity_min_of(int cpu)
+{
+	if (!sched_feat(MIN_CAPACITY_CAPPING))
+		return 0;
+	return arch_scale_cpu_capacity(NULL, cpu) *
+	       arch_scale_min_freq_capacity(NULL, cpu)
+	       >> SCHED_CAPACITY_SHIFT;
+}
+
+
 static inline bool energy_aware(void)
 {
        return sched_feat(ENERGY_AWARE);
@@ -5396,6 +5410,15 @@ static unsigned long group_max_util(struct energy_env *eenv)
 			util += eenv->util_delta;
 
 		max_util = max(max_util, util);
+
+		/*
+		 * Take into account any minimum frequency imposed
+		 * elsewhere which limits the energy states available
+		 * If the MIN_CAPACITY_CAPPING feature is not enabled
+		 * capacity_min_of will return 0 (not capped).
+		 */
+		max_util = max(max_util, capacity_min_of(cpu));
+
 	}
 
 	return max_util;
@@ -6416,6 +6439,9 @@ static int start_cpu(bool boosted)
 {
 	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
 
+	if(!sched_feat(STUNE_BOOST_BIAS_BIG))
+		return rd->min_cap_orig_cpu;
+
 	return boosted ? rd->max_cap_orig_cpu : rd->min_cap_orig_cpu;
 }
 
@@ -6428,6 +6454,7 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 	unsigned long min_wake_util = ULONG_MAX;
 	unsigned long target_max_spare_cap = 0;
 	unsigned long best_active_util = ULONG_MAX;
+	unsigned long target_idle_max_spare_cap = 0;
 	int best_idle_cstate = INT_MAX;
 	struct sched_domain *sd;
 	struct sched_group *sg;
@@ -6463,7 +6490,7 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 		for_each_cpu_and(i, tsk_cpus_allowed(p), sched_group_cpus(sg)) {
 			unsigned long capacity_curr = capacity_curr_of(i);
 			unsigned long capacity_orig = capacity_orig_of(i);
-			unsigned long wake_util, new_util;
+			unsigned long wake_util, new_util, min_capped_util;
 
 			if (!cpu_online(i))
 				continue;
@@ -6485,6 +6512,16 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 			 * than the one required to boost the task.
 			 */
 			new_util = max(min_util, new_util);
+
+			/*
+			 * Include minimum capacity constraint:
+			 * new_util contains the required utilization including
+			 * boost. min_capped_util also takes into account a
+			 * minimum capacity cap imposed on the CPU by external
+			 * actors.
+			 */
+			min_capped_util = max(new_util, capacity_min_of(i));
+
 			if (new_util > capacity_orig)
 				continue;
 
@@ -6607,6 +6644,12 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 				/* Select idle CPU with lower cap_orig */
 				if (capacity_orig > best_idle_min_cap_orig)
 					continue;
+				/* Favor CPUs that won't end up running at a
+				 * high OPP.
+				 */
+				if ((capacity_orig - min_capped_util) <
+					target_idle_max_spare_cap)
+					continue;
 
 				/*
 				 * Skip CPUs in deeper idle state, but only
@@ -6620,6 +6663,8 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 
 				/* Keep track of best idle CPU */
 				best_idle_min_cap_orig = capacity_orig;
+				target_idle_max_spare_cap = capacity_orig -
+							    min_capped_util;
 				best_idle_cstate = idle_idx;
 				best_idle_cpu = i;
 				continue;
@@ -6650,10 +6695,11 @@ static inline int find_best_target(struct task_struct *p, int *backup_cpu,
 				continue;
 
 			/* Favor CPUs with maximum spare capacity */
-			if ((capacity_orig - new_util) < target_max_spare_cap)
+			if ((capacity_orig - min_capped_util) <
+				target_max_spare_cap)
 				continue;
 
-			target_max_spare_cap = capacity_orig - new_util;
+			target_max_spare_cap = capacity_orig - min_capped_util;
 			target_capacity = capacity_orig;
 			target_cpu = i;
 		}
@@ -8043,6 +8089,9 @@ static void update_cpu_capacity(struct sched_domain *sd, int cpu)
 	unsigned long flags;
 
 	cpu_rq(cpu)->cpu_capacity_orig = capacity;
+
+	capacity *= arch_scale_max_freq_capacity(sd, cpu);
+	capacity >>= SCHED_CAPACITY_SHIFT;
 
 	mcc = &cpu_rq(cpu)->rd->max_cpu_capacity;
 
